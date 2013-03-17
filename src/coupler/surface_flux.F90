@@ -334,15 +334,18 @@ contains
 
 !<PUBLICROUTINE INTERFACE="surface_flux">
 subroutine surface_flux_1d (                                           &
-     t_atm,     q_atm_in,   u_atm,     v_atm,     p_atm,     z_atm,    &
+     t_atm,     q_atm_in,   u_atm,     v_atm,   kpp_u_atm,  kpp_v_atm, &
+     p_atm,     z_atm,                                                 &
      p_surf,    t_surf,     t_ca,      q_surf,                         &
      u_surf,    v_surf,                                                &
      rough_mom, rough_heat, rough_moist, rough_scale, gust,            &
      flux_t, flux_q, flux_r, flux_u, flux_v,                           &
+     kpp_flux_u, kpp_flux_v,                                           &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
+     kpp_dtaudu_atm, kpp_dtaudv_atm,                                   &
      dt,        land,      seawater,     avail  )
 !</PUBLICROUTINE>
 !  slm Mar 28 2002 -- remove agument drag_q since it is just cd_q*wind
@@ -351,13 +354,16 @@ subroutine surface_flux_1d (                                           &
   logical, intent(in), dimension(:) :: land,  seawater, avail
   real, intent(in),  dimension(:) :: &
        t_atm,     q_atm_in,   u_atm,     v_atm,              &
+       kpp_u_atm, kpp_v_atm,                                 &
        p_atm,     z_atm,      t_ca,                          &
        p_surf,    t_surf,     u_surf,    v_surf,  &
        rough_mom, rough_heat, rough_moist,  rough_scale, gust
   real, intent(out), dimension(:) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
+       kpp_flux_u, kpp_flux_v,                               &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
        dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
+       kpp_dtaudu_atm, kpp_dtaudv_atm,                       &
        w_atm,     u_star,     b_star,    q_star,             &
        cd_m,      cd_t,       cd_q
   real, intent(inout), dimension(:) :: q_surf
@@ -372,11 +378,12 @@ subroutine surface_flux_1d (                                           &
        thv_atm,  th_atm,   tv_atm,    thv_surf,            &
        e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
        t_surf0,  t_surf1,  u_dif,     v_dif,               &
+       kpp_u_dif, kpp_v_dif, &
        rho_drag, drag_t,    drag_m,   drag_q,    rho,      &
-       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust
+       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust,   &
+       kpp_w_atm, kpp_cd_m, kpp_drag_m, kpp_rho_drag
 
   integer :: i, nbad
-
 
   if (do_init) call surface_flux_init
 
@@ -436,12 +443,16 @@ subroutine surface_flux_1d (                                           &
 
      u_dif = u_surf - u_atm                    ! velocity components relative to surface
      v_dif = v_surf - v_atm
+
+     kpp_u_dif = u_surf - kpp_u_atm     ! kpp-dependent velocity components relative to surface
+     kpp_v_dif = v_surf - kpp_v_atm
   endwhere
 
   if(alt_gustiness) then
      do i = 1, size(avail)
         if (.not.avail(i)) cycle
         w_atm(i) = max(sqrt(u_dif(i)**2 + v_dif(i)**2), gust_const)
+        kpp_w_atm(i) = max(sqrt(kpp_u_dif(i)**2 + kpp_v_dif(i)**2), gust_const)
         ! derivatives of surface wind w.r.t. atm. wind components
         if(w_atm(i) > gust_const) then
            dw_atmdu(i) = u_dif(i)/w_atm(i)
@@ -464,6 +475,7 @@ subroutine surface_flux_1d (                                           &
            
      where(avail) 
         w_atm = sqrt(u_dif*u_dif + v_dif*v_dif + w_gust*w_gust)
+        kpp_w_atm = sqrt(kpp_u_dif**2 + kpp_v_dif**2 + w_gust**2)
         ! derivatives of surface wind w.r.t. atm. wind components
         dw_atmdu = u_dif/w_atm
         dw_atmdv = v_dif/w_atm
@@ -471,12 +483,25 @@ subroutine surface_flux_1d (                                           &
   endif
 
   !  monin-obukhov similarity theory 
+  ! May be some slight w_atm dependence on cd_m, so I am dupicating it --mlw
+  ! Please do not commit this to any repo!!
+  call mo_drag (thv_atm, thv_surf, z_atm,                  &
+       rough_mom, rough_heat, rough_moist, kpp_w_atm,      &
+       kpp_cd_m, cd_t, cd_q, u_star, b_star, avail         )
+
+  ! Call it again to get the correct values
+  !  monin-obukhov similarity theory
   call mo_drag (thv_atm, thv_surf, z_atm,                  &
        rough_mom, rough_heat, rough_moist, w_atm,          &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
 
   ! override with ocean fluxes from NCAR calculation
   if (ncar_ocean_flux .or. ncar_ocean_flux_orig) then
+
+    ! Same deal; call it twice to get kpp_cd_m
+    call  ncar_ocean_fluxes (kpp_w_atm, th_atm, t_surf0, q_atm, q_surf0, z_atm, &
+                             seawater, kpp_cd_m, cd_t, cd_q, u_star, b_star     )
+
     call  ncar_ocean_fluxes (w_atm, th_atm, t_surf0, q_atm, q_surf0, z_atm, &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
   end if
@@ -488,6 +513,9 @@ subroutine surface_flux_1d (                                           &
      drag_t = cd_t * w_atm
      drag_q = cd_q * w_atm
      drag_m = cd_m * w_atm
+
+     kpp_cd_m = kpp_cd_m * (log(z_atm / rough_mom + 1) / log(z_atm / rough_scale + 1))**2
+     kpp_drag_m = kpp_cd_m * kpp_w_atm
 
      ! density
      rho = p_atm / (rdgas * tv_atm)  
@@ -525,6 +553,10 @@ subroutine surface_flux_1d (                                           &
      flux_u     = rho_drag * u_dif   ! zonal      component of stress (Nt/m**2)
      flux_v     = rho_drag * v_dif   ! meridional component of stress 
 
+     kpp_rho_drag = kpp_drag_m * rho
+     kpp_flux_u = kpp_rho_drag * kpp_u_dif   ! kpp-dependent zonal stress (Nt/m**2)
+     kpp_flux_v = kpp_rho_drag * kpp_v_dif   ! kpp-dependent meridional stress
+
   elsewhere
      ! zero-out un-available data in output only fields
      flux_t     = 0.0
@@ -532,6 +564,8 @@ subroutine surface_flux_1d (                                           &
      flux_r     = 0.0
      flux_u     = 0.0
      flux_v     = 0.0
+     kpp_flux_u = 0.0
+     kpp_flux_v = 0.0
      dhdt_surf  = 0.0
      dedt_surf  = 0.0
      dedq_surf  = 0.0
@@ -552,11 +586,17 @@ subroutine surface_flux_1d (                                           &
      where(avail)
         dtaudv_atm = -rho_drag
         dtaudu_atm = -rho_drag
+
+        kpp_dtaudv_atm = -kpp_rho_drag
+        kpp_dtaudu_atm = -kpp_rho_drag
      endwhere
   else
      where(avail)
         dtaudu_atm = -cd_m*rho*(dw_atmdu*u_dif + w_atm)
         dtaudv_atm = -cd_m*rho*(dw_atmdv*v_dif + w_atm)
+
+        kpp_dtaudu_atm = -kpp_cd_m*rho*(dw_atmdu*kpp_u_dif + kpp_w_atm)
+        kpp_dtaudv_atm = -kpp_cd_m*rho*(dw_atmdv*kpp_v_dif + kpp_w_atm)
      endwhere
   endif
 
@@ -566,28 +606,34 @@ end subroutine surface_flux_1d
 !#######################################################################
 
 subroutine surface_flux_0d (                                                 &
-     t_atm_0,     q_atm_0,      u_atm_0,     v_atm_0,   p_atm_0, z_atm_0,    &
+     t_atm_0,     q_atm_0,      u_atm_0,     v_atm_0,                        &
+     kpp_u_atm_0, kpp_v_atm_0,  p_atm_0,     z_atm_0,                        &
      p_surf_0,    t_surf_0,     t_ca_0,      q_surf_0,                       &
      u_surf_0,    v_surf_0,                                                  &
      rough_mom_0, rough_heat_0, rough_moist_0, rough_scale_0, gust_0,        &
      flux_t_0,    flux_q_0,     flux_r_0,    flux_u_0,  flux_v_0,            &
+     kpp_flux_u_0, kpp_flux_v_0,                                             &
      cd_m_0,      cd_t_0,       cd_q_0,                                      &
      w_atm_0,     u_star_0,     b_star_0,     q_star_0,                      &
      dhdt_surf_0, dedt_surf_0,  dedq_surf_0,  drdt_surf_0,                   &
      dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0, dtaudv_atm_0,                  &
+     kpp_dtaudu_atm_0, kpp_dtaudv_atm_0,                                     &
      dt,          land_0,       seawater_0,  avail_0  )
 
   ! ---- arguments -----------------------------------------------------------
   logical, intent(in) :: land_0,  seawater_0, avail_0
   real, intent(in) ::                                                  &
        t_atm_0,     q_atm_0,      u_atm_0,     v_atm_0,                &
+       kpp_u_atm_0, kpp_v_atm_0,                                       &
        p_atm_0,     z_atm_0,      t_ca_0,                              &
        p_surf_0,    t_surf_0,     u_surf_0,    v_surf_0,               &
        rough_mom_0, rough_heat_0, rough_moist_0, rough_scale_0, gust_0
   real, intent(out) ::                                                 &
        flux_t_0,    flux_q_0,     flux_r_0,    flux_u_0,  flux_v_0,    &
+       kpp_flux_u_0, kpp_flux_v_0,                                     &
        dhdt_surf_0, dedt_surf_0,  dedq_surf_0, drdt_surf_0,            &
        dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0,dtaudv_atm_0,           &
+       kpp_dtaudu_atm_0, kpp_dtaudv_atm_0,                             &
        w_atm_0,     u_star_0,     b_star_0,    q_star_0,               &
        cd_m_0,      cd_t_0,       cd_q_0
   real, intent(inout) :: q_surf_0
@@ -597,13 +643,16 @@ subroutine surface_flux_0d (                                                 &
   logical, dimension(1) :: land,  seawater, avail
   real, dimension(1) :: &
        t_atm,     q_atm,      u_atm,     v_atm,              &
+       kpp_u_atm, kpp_v_atm,                                 &
        p_atm,     z_atm,      t_ca,                          &
        p_surf,    t_surf,     u_surf,    v_surf,             &
        rough_mom, rough_heat, rough_moist,  rough_scale, gust
   real, dimension(1) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
+       kpp_flux_u, kpp_flux_v,                               &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
        dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
+       kpp_dtaudu_atm, kpp_dtaudv_atm,                       &
        w_atm,     u_star,     b_star,    q_star,             &
        cd_m,      cd_t,       cd_q
   real, dimension(1) :: q_surf
@@ -615,6 +664,8 @@ subroutine surface_flux_0d (                                                 &
   q_atm(1)       = q_atm_0
   u_atm(1)       = u_atm_0
   v_atm(1)       = v_atm_0
+  kpp_u_atm(1)   = kpp_u_atm_0
+  kpp_v_atm(1)   = kpp_v_atm_0
   p_atm(1)       = p_atm_0
   z_atm(1)       = z_atm_0
   t_ca(1)        = t_ca_0
@@ -633,15 +684,18 @@ subroutine surface_flux_0d (                                                 &
   avail(1)       = avail_0
 
   call surface_flux_1d (                                                 &
-       t_atm,     q_atm,      u_atm,     v_atm,     p_atm,     z_atm,    &
+       t_atm,     q_atm,      u_atm,     v_atm, kpp_u_atm,  kpp_v_atm,   &
+       p_atm,     z_atm,                                                 &
        p_surf,    t_surf,     t_ca,      q_surf,                         &
        u_surf,    v_surf,                                                &
        rough_mom, rough_heat, rough_moist, rough_scale, gust,            &
        flux_t, flux_q, flux_r, flux_u, flux_v,                           &
+       kpp_flux_u, kpp_flux_v,                                           &
        cd_m,      cd_t,       cd_q,                                      &
        w_atm,     u_star,     b_star,     q_star,                        &
        dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
        dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
+       kpp_dtaudu_atm, kpp_dtaudv_atm,                                   &
        dt,        land,      seawater, avail  )
 
   flux_t_0     = flux_t(1)
@@ -649,6 +703,8 @@ subroutine surface_flux_0d (                                                 &
   flux_r_0     = flux_r(1)
   flux_u_0     = flux_u(1)
   flux_v_0     = flux_v(1)
+  kpp_flux_u_0 = kpp_flux_u(1)
+  kpp_flux_v_0 = kpp_flux_v(1)
   dhdt_surf_0  = dhdt_surf(1)
   dedt_surf_0  = dedt_surf(1)
   dedq_surf_0  = dedq_surf(1)
@@ -657,6 +713,8 @@ subroutine surface_flux_0d (                                                 &
   dedq_atm_0   = dedq_atm(1)
   dtaudu_atm_0 = dtaudu_atm(1)
   dtaudv_atm_0 = dtaudv_atm(1)
+  kpp_dtaudu_atm_0 = kpp_dtaudu_atm(1)
+  kpp_dtaudv_atm_0 = kpp_dtaudv_atm(1)
   w_atm_0      = w_atm(1)
   u_star_0     = u_star(1)
   b_star_0     = b_star(1)
@@ -669,28 +727,34 @@ subroutine surface_flux_0d (                                                 &
 end subroutine surface_flux_0d
 
 subroutine surface_flux_2d (                                           &
-     t_atm,     q_atm_in,   u_atm,     v_atm,     p_atm,     z_atm,    &
+     t_atm,     q_atm_in,   u_atm,     v_atm,                          &
+     kpp_u_atm, kpp_v_atm,  p_atm,     z_atm,                          &
      p_surf,    t_surf,     t_ca,      q_surf,                         &
      u_surf,    v_surf,                                                &
      rough_mom, rough_heat, rough_moist, rough_scale, gust,            &
      flux_t,    flux_q,     flux_r,    flux_u,    flux_v,              &
+     kpp_flux_u, kpp_flux_v,                                           &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
+     kpp_dtaudu_atm, kpp_dtaudv_atm,                                   &
      dt,        land,       seawater,  avail  )
 
   ! ---- arguments -----------------------------------------------------------
   logical, intent(in), dimension(:,:) :: land,  seawater, avail
   real, intent(in),  dimension(:,:) :: &
        t_atm,     q_atm_in,   u_atm,     v_atm,              &
+       kpp_u_atm, kpp_v_atm,                                 &
        p_atm,     z_atm,      t_ca,                          &
        p_surf,    t_surf,     u_surf,    v_surf,             &
        rough_mom, rough_heat, rough_moist, rough_scale, gust
   real, intent(out), dimension(:,:) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
+       kpp_flux_u, kpp_flux_v,                               &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
        dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
+       kpp_dtaudu_atm, kpp_dtaudv_atm,                       &
        w_atm,     u_star,     b_star,    q_star,             &
        cd_m,      cd_t,       cd_q
   real, intent(inout), dimension(:,:) :: q_surf
@@ -701,15 +765,18 @@ subroutine surface_flux_2d (                                           &
 
   do j = 1, size(t_atm,2)
      call surface_flux_1d (                                           &
-          t_atm(:,j),     q_atm_in(:,j),   u_atm(:,j),     v_atm(:,j),     p_atm(:,j),     z_atm(:,j),    &
+          t_atm(:,j),     q_atm_in(:,j),   u_atm(:,j),     v_atm(:,j),      &
+          kpp_u_atm(:,j), kpp_v_atm(:,j),  p_atm(:,j),     z_atm(:,j),      &
           p_surf(:,j),    t_surf(:,j),     t_ca(:,j),      q_surf(:,j),                                   &
           u_surf(:,j),    v_surf(:,j),                                                                    &
           rough_mom(:,j), rough_heat(:,j), rough_moist(:,j), rough_scale(:,j), gust(:,j),                 &
           flux_t(:,j),    flux_q(:,j),     flux_r(:,j),    flux_u(:,j),    flux_v(:,j),                   &
+          kpp_flux_u(:,j), kpp_flux_v(:,j),                                 &
           cd_m(:,j),      cd_t(:,j),       cd_q(:,j),                                                     &
           w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                                  &
           dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                               &
           dhdt_atm(:,j),  dedq_atm(:,j),   dtaudu_atm(:,j), dtaudv_atm(:,j),                              &
+          kpp_dtaudu_atm(:,j), kpp_dtaudv_atm(:,j),                          &
           dt,             land(:,j),       seawater(:,j),  avail(:,j)  )
   end do
 end subroutine surface_flux_2d

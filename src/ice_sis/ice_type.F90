@@ -194,6 +194,8 @@ public  :: iceClocka,iceClockb,iceClockc
      real,    pointer, dimension(:,:)   :: v_ocn               =>NULL()
      real,    pointer, dimension(:,:,:) :: flux_u_top          =>NULL()
      real,    pointer, dimension(:,:,:) :: flux_v_top          =>NULL()
+     real,    pointer, dimension(:,:,:) :: kpp_flux_u_top      =>NULL()
+     real,    pointer, dimension(:,:,:) :: kpp_flux_v_top      =>NULL()
      real,    pointer, dimension(:,:,:) :: flux_t_top          =>NULL()
      real,    pointer, dimension(:,:,:) :: flux_q_top          =>NULL()
      real,    pointer, dimension(:,:,:) :: flux_lw_top         =>NULL()
@@ -206,6 +208,8 @@ public  :: iceClocka,iceClockb,iceClockc
      real,    pointer, dimension(:,:,:) :: fprec_top           =>NULL()
      real,    pointer, dimension(:,:  ) :: flux_u              =>NULL()
      real,    pointer, dimension(:,:  ) :: flux_v              =>NULL()
+     real,    pointer, dimension(:,:  ) :: kpp_flux_u          =>NULL()
+     real,    pointer, dimension(:,:  ) :: kpp_flux_v          =>NULL()
      real,    pointer, dimension(:,:  ) :: flux_t              =>NULL()
      real,    pointer, dimension(:,:  ) :: flux_q              =>NULL()
      real,    pointer, dimension(:,:  ) :: flux_lw             =>NULL()
@@ -415,6 +419,8 @@ public  :: iceClocka,iceClockb,iceClockc
 
     allocate ( Ice % flux_u_top   (isd:ied, jsd:jed, km) ,       &
          Ice % flux_v_top         (isd:ied, jsd:jed, km) ,       &
+         Ice % kpp_flux_u_top     (isd:ied, jsd:jed, km) ,       &
+         Ice % kpp_flux_v_top     (isd:ied, jsd:jed, km) ,       &
          Ice % flux_t_top         (isc:iec, jsc:jec, km) ,       &
          Ice % flux_q_top         (isc:iec, jsc:jec, km) ,       &
          Ice % flux_sw_vis_dir_top(isc:iec, jsc:jec, km) ,       &
@@ -428,6 +434,8 @@ public  :: iceClocka,iceClockb,iceClockc
 
     allocate ( Ice % flux_u    (isc:iec, jsc:jec ) ,       &
          Ice % flux_v          (isc:iec, jsc:jec ) ,       &
+         Ice % kpp_flux_u      (isc:iec, jsc:jec ) ,       &
+         Ice % kpp_flux_v      (isc:iec, jsc:jec ) ,       &
          Ice % flux_t          (isc:iec, jsc:jec ) ,       &
          Ice % flux_q          (isc:iec, jsc:jec ) ,       &
          Ice % flux_sw_vis_dir (isc:iec, jsc:jec) ,        &
@@ -467,6 +475,8 @@ public  :: iceClocka,iceClockb,iceClockc
     Ice % swdn            =0.
     Ice % flux_u_top      =0. 
     Ice % flux_v_top      =0.
+    Ice % kpp_flux_u_top  =0.
+    Ice % kpp_flux_v_top  =0.
     Ice % sea_lev         =0.
     Ice % part_size       =0.
     Ice % u_ocn           =0.
@@ -538,6 +548,8 @@ public  :: iceClocka,iceClockb,iceClockc
     id_restart = register_restart_field(Ice_restart, restart_file, 'sig12',       Ice%sig12,            domain=domain)
     id_restart = register_restart_field(Ice_restart, restart_file, 'flux_u',      Ice%flux_u,           domain=domain)
     id_restart = register_restart_field(Ice_restart, restart_file, 'flux_v',      Ice%flux_v,           domain=domain)
+    id_restart = register_restart_field(Ice_restart, restart_file, 'kpp_flux_u',  Ice%kpp_flux_u,       domain=domain)
+    id_restart = register_restart_field(Ice_restart, restart_file, 'kpp_flux_v',  Ice%kpp_flux_v,       domain=domain)
     id_restart = register_restart_field(Ice_restart, restart_file, 'flux_t',      Ice%flux_t,           domain=domain)
     id_restart = register_restart_field(Ice_restart, restart_file, 'flux_q',      Ice%flux_q,           domain=domain)
     id_restart = register_restart_field(Ice_restart, restart_file, 'flux_salt',   Ice%flux_salt,        domain=domain)
@@ -623,6 +635,8 @@ public  :: iceClocka,iceClockb,iceClockc
        Ice % sig12             = 0.0
        Ice % flux_u            = 0.0 
        Ice % flux_v            = 0.0
+       Ice % kpp_flux_u        = 0.0 
+       Ice % kpp_flux_v        = 0.0
        Ice % flux_t            = 0.0 
        Ice % flux_q            = 0.0
        Ice % flux_lw           = 0.0
@@ -718,9 +732,11 @@ public  :: iceClocka,iceClockb,iceClockc
     deallocate(Ice % part_size, Ice % part_size_uv, Ice % u_surf, Ice % v_surf )
     deallocate(Ice % u_ocn, Ice % v_ocn ,  Ice % rough_mom, Ice % rough_heat )
     deallocate(Ice % rough_moist, Ice % albedo, Ice % flux_u_top, Ice % flux_v_top )
+    deallocate(Ice % kpp_flux_u_top, Ice % kpp_flux_v_top )
     deallocate(Ice % flux_t_top, Ice % flux_q_top, Ice % flux_lw_top )
     deallocate(Ice % flux_lh_top, Ice % lprec_top, Ice % fprec_top, Ice % flux_u )
     deallocate(Ice % flux_v, Ice % flux_t, Ice % flux_q, Ice % flux_lw )
+    deallocate(Ice % kpp_flux_u, Ice % kpp_flux_v )
     deallocate(Ice % flux_lh, Ice % lprec, Ice % fprec, Ice % p_surf, Ice % runoff ) 
     deallocate(Ice % calving, Ice % runoff_hflx, Ice % calving_hflx )
     deallocate(Ice % flux_salt)
@@ -1002,6 +1018,8 @@ subroutine ice_data_type_chksum(id, timestep, data_type)
     write(outunit,100) 'ice_data_type%v_ocn              ',mpp_chksum(data_type%v_ocn              )
     write(outunit,100) 'ice_data_type%flux_u_top         ',mpp_chksum(data_type%flux_u_top         )
     write(outunit,100) 'ice_data_type%flux_v_top         ',mpp_chksum(data_type%flux_v_top         )
+    write(outunit,100) 'ice_data_type%kpp_flux_u_top     ',mpp_chksum(data_type%kpp_flux_u_top     )
+    write(outunit,100) 'ice_data_type%kpp_flux_v_top     ',mpp_chksum(data_type%kpp_flux_v_top     )
     write(outunit,100) 'ice_data_type%flux_t_top         ',mpp_chksum(data_type%flux_t_top         )
     write(outunit,100) 'ice_data_type%flux_q_top         ',mpp_chksum(data_type%flux_q_top         )
     write(outunit,100) 'ice_data_type%flux_lw_top        ',mpp_chksum(data_type%flux_lw_top        )
@@ -1014,6 +1032,8 @@ subroutine ice_data_type_chksum(id, timestep, data_type)
     write(outunit,100) 'ice_data_type%fprec_top          ',mpp_chksum(data_type%fprec_top          )
     write(outunit,100) 'ice_data_type%flux_u             ',mpp_chksum(data_type%flux_u             )
     write(outunit,100) 'ice_data_type%flux_v             ',mpp_chksum(data_type%flux_v             )
+    write(outunit,100) 'ice_data_type%kpp_flux_u         ',mpp_chksum(data_type%kpp_flux_u         )
+    write(outunit,100) 'ice_data_type%kpp_flux_v         ',mpp_chksum(data_type%kpp_flux_v         )
     write(outunit,100) 'ice_data_type%flux_t             ',mpp_chksum(data_type%flux_t             )
     write(outunit,100) 'ice_data_type%flux_q             ',mpp_chksum(data_type%flux_q             )
     write(outunit,100) 'ice_data_type%flux_lw            ',mpp_chksum(data_type%flux_lw            )

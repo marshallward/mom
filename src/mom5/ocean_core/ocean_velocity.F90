@@ -388,6 +388,7 @@ subroutine ocean_velocity_init (Grid, Domain, Time, Time_steps, Ocean_options, &
   allocate (Velocity%u(isd:ied,jsd:jed,nk,2,3))
   allocate (Velocity%smf(isd:ied,jsd:jed,2))
   allocate (Velocity%smf_bgrid(isd:ied,jsd:jed,2))
+  allocate (Velocity%kpp_smf_bgrid(isd:ied,jsd:jed,2))
   allocate (Velocity%smf_cgrid(isd:ied,jsd:jed,2))
   allocate (Velocity%bmf(isd:ied,jsd:jed,2))
   allocate (Velocity%gamma(isd:ied,jsd:jed))
@@ -409,6 +410,7 @@ subroutine ocean_velocity_init (Grid, Domain, Time, Time_steps, Ocean_options, &
 
   Velocity%smf                 = 0.0
   Velocity%smf_bgrid           = 0.0
+  Velocity%kpp_smf_bgrid       = 0.0
   Velocity%smf_cgrid           = 0.0
   Velocity%bmf                 = 0.0
   Velocity%gamma               = 0.0

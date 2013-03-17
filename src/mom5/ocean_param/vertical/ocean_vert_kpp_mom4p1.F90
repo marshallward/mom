@@ -415,6 +415,7 @@ logical :: linear_hbl        = .true.    ! To use the linear interpolation as La
                                          ! Set to .false. for quadratic interpolation as in Danabasoglu et al.
 logical :: calc_visc_on_cgrid=.false.    ! calculate viscosity directly on c-grid
 logical :: smooth_ri_kmax_eq_kmu=.false. ! to set details for smoothing the richardson number
+logical :: use_kpp_smf       = .false.   ! Use kpp-specific wind stress
 real    :: shear_instability_flag    = 1.0     ! set to 1.0 if shear_instability=.true.
 
 
@@ -493,8 +494,8 @@ namelist /ocean_vert_kpp_mom4p1_nml/ use_this_module, shear_instability, double_
                                      radiation_large, radiation_zero, radiation_iow,        &
                                      use_sbl_bottom_flux, wsfc_combine_runoff_calve,        &
                                      bvf_from_below, variable_vtc, use_max_shear,           &
-                                     linear_hbl, calc_visc_on_cgrid, smooth_ri_kmax_eq_kmu
-                                 
+                                     linear_hbl, calc_visc_on_cgrid, smooth_ri_kmax_eq_kmu, &
+                                     use_kpp_smf
 
 contains
 
@@ -1130,12 +1131,23 @@ subroutine vert_mix_kpp_mom4p1 (aidif, Time, Thickness, Velocity, T_prog, T_diag
 !         these are proper units for buoyancy fluxes. 
           active_cells = Grd%umask(i,j,1)   + Grd%umask(i-1,j,1)   &
                         +Grd%umask(i,j-1,1) + Grd%umask(i-1,j-1,1) + epsln
-          smftu = rho0r*(Velocity%smf_bgrid(i,j,1)   + Velocity%smf_bgrid(i-1,j,1)     &
-                        +Velocity%smf_bgrid(i,j-1,1) + Velocity%smf_bgrid(i-1,j-1,1))  &
-                  /active_cells
-          smftv = rho0r*(Velocity%smf_bgrid(i,j,2)   + Velocity%smf_bgrid(i-1,j,2)    &
-                        +Velocity%smf_bgrid(i,j-1,2) + Velocity%smf_bgrid(i-1,j-1,2)) &
-                   /active_cells
+
+          if ( use_kpp_smf == .true.) then
+            smftu = rho0r*(Velocity%kpp_smf_bgrid(i,j,1)   + Velocity%kpp_smf_bgrid(i-1,j,1)     &
+                          +Velocity%kpp_smf_bgrid(i,j-1,1) + Velocity%kpp_smf_bgrid(i-1,j-1,1))  &
+                          /active_cells
+            smftv = rho0r*(Velocity%kpp_smf_bgrid(i,j,2)   + Velocity%kpp_smf_bgrid(i-1,j,2)    &
+                          +Velocity%kpp_smf_bgrid(i,j-1,2) + Velocity%kpp_smf_bgrid(i-1,j-1,2)) &
+                          /active_cells
+          else
+            smftu = rho0r*(Velocity%smf_bgrid(i,j,1)   + Velocity%smf_bgrid(i-1,j,1)     &
+                          +Velocity%smf_bgrid(i,j-1,1) + Velocity%smf_bgrid(i-1,j-1,1))  &
+                          /active_cells
+            smftv = rho0r*(Velocity%smf_bgrid(i,j,2)   + Velocity%smf_bgrid(i-1,j,2)    &
+                          +Velocity%smf_bgrid(i,j-1,2) + Velocity%smf_bgrid(i-1,j-1,2)) &
+                          /active_cells
+          endif
+
           ustar(i,j) = sqrt( sqrt(smftu**2 + smftv**2) )
           
           Bo(i,j)    = grav * (talpha(i,j,1) * &

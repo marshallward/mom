@@ -355,8 +355,12 @@ real, allocatable, dimension(:) :: &
      ex_dhdt_atm,  &   ! d(sens.heat.flux)/d(T atm)
      ex_flux_u,    &   ! u stress on atmosphere
      ex_flux_v,    &   ! v stress on atmosphere
+     ex_kpp_flux_u, &  ! kpp-dependent u stress on atmosphere
+     ex_kpp_flux_v, &  ! kpp-dependent v stress on atmosphere
      ex_dtaudu_atm,&   ! d(stress)/d(u)
      ex_dtaudv_atm,&   ! d(stress)/d(v)
+     ex_kpp_dtaudu_atm,&   ! d(stress)/d(u)
+     ex_kpp_dtaudv_atm,&   ! d(stress)/d(v)
      ex_albedo_fix,&
      ex_albedo_vis_dir_fix,&
      ex_albedo_nir_dir_fix,&
@@ -854,6 +858,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         kd = size(Ice%ice_mask,3)
         allocate( atmos_ice_boundary%u_flux(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%v_flux(is:ie,js:je,kd) )
+        allocate( atmos_ice_boundary%kpp_u_flux(is:ie,js:je,kd) )
+        allocate( atmos_ice_boundary%kpp_v_flux(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%u_star(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%t_flux(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%q_flux(is:ie,js:je,kd) )
@@ -872,6 +878,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 ! initialize boundary values for override experiments (mjh)
         atmos_ice_boundary%u_flux=0.0
         atmos_ice_boundary%v_flux=0.0
+        atmos_ice_boundary%kpp_u_flux=0.0
+        atmos_ice_boundary%kpp_v_flux=0.0
         atmos_ice_boundary%u_star=0.0
         atmos_ice_boundary%t_flux=0.0
         atmos_ice_boundary%q_flux=0.0
@@ -1015,6 +1023,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !via field_manager
     allocate( ice_ocean_boundary%u_flux   (is:ie,js:je) )
     allocate( ice_ocean_boundary%v_flux   (is:ie,js:je) )
+    allocate( ice_ocean_boundary%kpp_u_flux   (is:ie,js:je) )
+    allocate( ice_ocean_boundary%kpp_v_flux   (is:ie,js:je) )
     allocate( ice_ocean_boundary%t_flux   (is:ie,js:je) )
     allocate( ice_ocean_boundary%q_flux   (is:ie,js:je) )
     allocate( ice_ocean_boundary%salt_flux(is:ie,js:je) )
@@ -1170,6 +1180,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_t_atm,      & 
        ex_p_atm,      &
        ex_u_atm, ex_v_atm,    &
+       ex_kpp_u_atm, ex_kpp_v_atm,    &
        ex_gust,       &
        ex_t_surf4,    &
        ex_u_surf, ex_v_surf,  &
@@ -1238,8 +1249,12 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
 ! MOD these were moved from local ! so they can be passed to flux down
        ex_flux_u(n_xgrid_sfc),    &
        ex_flux_v(n_xgrid_sfc),    &
+       ex_kpp_flux_u(n_xgrid_sfc), &
+       ex_kpp_flux_v(n_xgrid_sfc), &
        ex_dtaudu_atm(n_xgrid_sfc),&
        ex_dtaudv_atm(n_xgrid_sfc),&
+       ex_kpp_dtaudu_atm(n_xgrid_sfc),&
+       ex_kpp_dtaudv_atm(n_xgrid_sfc),&
 
 ! values added for LM3
        ex_cd_t     (n_xgrid_sfc),  &
@@ -1321,6 +1336,8 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   call data_override ('ATM', 'p_bot',  Atm%p_bot , Time)
   call data_override ('ATM', 'u_bot',  Atm%u_bot , Time)
   call data_override ('ATM', 'v_bot',  Atm%v_bot , Time)
+  call data_override ('ATM', 'kpp_u_bot', Atm%kpp_u_bot, Time)
+  call data_override ('ATM', 'kpp_v_bot', Atm%kpp_v_bot, Time)
   call data_override ('ATM', 'p_surf', Atm%p_surf, Time)
   call data_override ('ATM', 'slp',    Atm%slp,    Time)
   call data_override ('ATM', 'gust',   Atm%gust,   Time)
@@ -1422,6 +1439,8 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   call put_to_xgrid (Atm%p_bot , 'ATM', ex_p_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
   call put_to_xgrid (Atm%u_bot , 'ATM', ex_u_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
   call put_to_xgrid (Atm%v_bot , 'ATM', ex_v_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%kpp_u_bot, 'ATM', ex_kpp_u_atm, xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%kpp_v_bot, 'ATM', ex_kpp_v_atm, xmap_sfc, remap_method=remap_method, complete=.false.)
   call put_to_xgrid (Atm%p_surf, 'ATM', ex_p_surf, xmap_sfc, remap_method=remap_method, complete=.false.)
   call put_to_xgrid (Atm%slp,    'ATM', ex_slp,    xmap_sfc, remap_method=remap_method, complete=.false.)
   call put_to_xgrid (Atm%gust,   'ATM', ex_gust,   xmap_sfc, remap_method=remap_method, complete=.true.)
@@ -1528,16 +1547,20 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   ! [5] compute explicit fluxes and tendencies at all available points ---
   call some(xmap_sfc, ex_avail)
   call surface_flux (&
-       ex_t_atm, ex_tr_atm(:,isphum),  ex_u_atm, ex_v_atm,  ex_p_atm,  ex_z_atm,  &
+       ex_t_atm, ex_tr_atm(:,isphum),  ex_u_atm, ex_v_atm, &
+       ex_kpp_u_atm, ex_kpp_v_atm, &
+       ex_p_atm,  ex_z_atm,  &
        ex_p_surf,ex_t_surf, ex_t_ca,  ex_tr_surf(:,isphum),                       &
        ex_u_surf, ex_v_surf,                                           &
        ex_rough_mom, ex_rough_heat, ex_rough_moist, ex_rough_scale,    &
        ex_gust,                                                        &
        ex_flux_t, ex_flux_tr(:,isphum), ex_flux_lw, ex_flux_u, ex_flux_v,         &
+       ex_kpp_flux_u, ex_kpp_flux_v, &
        ex_cd_m,   ex_cd_t, ex_cd_q,                                    &
        ex_wind,   ex_u_star, ex_b_star, ex_q_star,                     &
        ex_dhdt_surf, ex_dedt_surf, ex_dfdtr_surf(:,isphum),  ex_drdt_surf,        &
        ex_dhdt_atm,  ex_dfdtr_atm(:,isphum),  ex_dtaudu_atm, ex_dtaudv_atm,       &
+       ex_kpp_dtaudu_atm, ex_kpp_dtaudv_atm,                           &
        dt,                                                             &
        ex_land, ex_seawater .gt. 0,  ex_avail                          )
 
@@ -2245,6 +2268,9 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   ex_flux_u = ex_flux_u + ex_delta_u*ex_dtaudu_atm
   ex_flux_v = ex_flux_v + ex_delta_v*ex_dtaudv_atm
 
+  ex_kpp_flux_u = ex_kpp_flux_u + ex_delta_u*ex_kpp_dtaudu_atm
+  ex_kpp_flux_v = ex_kpp_flux_v + ex_delta_v*ex_kpp_dtaudv_atm
+
 !-----------------------------------------------------------------------
 !---- adjust sw flux for albedo variations on exch grid ----
 !---- adjust 4 categories (vis/nir dir/dif) separately  ----
@@ -2474,6 +2500,8 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   call get_from_xgrid (Ice_boundary%drdt,     'OCN', ex_drdt_surf, xmap_sfc)
   call get_from_xgrid (Ice_boundary%u_flux,   'OCN', ex_flux_u,    xmap_sfc)
   call get_from_xgrid (Ice_boundary%v_flux,   'OCN', ex_flux_v,    xmap_sfc)
+  call get_from_xgrid (Ice_boundary%kpp_u_flux, 'OCN', ex_kpp_flux_u, xmap_sfc)
+  call get_from_xgrid (Ice_boundary%kpp_v_flux, 'OCN', ex_kpp_flux_v, xmap_sfc)
   call get_from_xgrid (Ice_boundary%u_star,   'OCN', ex_u_star,    xmap_sfc)
   call get_from_xgrid (Ice_boundary%coszen,   'OCN', ex_coszen,    xmap_sfc)
   call get_from_xgrid (Ice_boundary%p,        'OCN', ex_slp,       xmap_sfc) ! mw mod
@@ -2596,7 +2624,8 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
        & from_side=ISTOCK_BOTTOM, to_side=ISTOCK_TOP, &
        & radius=Radius, ier=ier, verbose='stock move HEAT (Atm->Ice) ')
 
-  deallocate ( ex_flux_u, ex_flux_v, ex_dtaudu_atm, ex_dtaudv_atm)
+  deallocate (ex_flux_u, ex_flux_v, ex_kpp_flux_u, ex_kpp_flux_v, &
+              ex_dtaudu_atm, ex_dtaudv_atm, ex_kpp_dtaudu_atm, ex_kpp_dtaudv_atm)
 
   !=======================================================================
   !-------------------- diagnostics section ------------------------------
@@ -2775,6 +2804,12 @@ subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary )
   if(ASSOCIATED(Ice_Ocean_Boundary%v_flux) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
       Ice%flux_v, Ice_Ocean_Boundary%v_flux, Ice_Ocean_Boundary%xtype, .FALSE. )
 
+  if(ASSOCIATED(Ice_Ocean_Boundary%kpp_u_flux) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+      Ice%kpp_flux_u, Ice_Ocean_Boundary%kpp_u_flux, Ice_Ocean_Boundary%xtype, .FALSE. )
+
+  if(ASSOCIATED(Ice_Ocean_Boundary%kpp_v_flux) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+      Ice%kpp_flux_v, Ice_Ocean_Boundary%kpp_v_flux, Ice_Ocean_Boundary%xtype, .FALSE. )
+
   if(ASSOCIATED(Ice_Ocean_Boundary%p     ) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
       Ice%p_surf, Ice_Ocean_Boundary%p     , Ice_Ocean_Boundary%xtype, .FALSE. )
 
@@ -2840,6 +2875,8 @@ subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary )
       call mpp_set_current_pelist(ocn_pelist)
       call data_override('OCN', 'u_flux',    Ice_Ocean_Boundary%u_flux   , Time )
       call data_override('OCN', 'v_flux',    Ice_Ocean_Boundary%v_flux   , Time )
+      call data_override('OCN', 'kpp_u_flux', Ice_Ocean_Boundary%kpp_u_flux, Time )
+      call data_override('OCN', 'kpp_v_flux', Ice_Ocean_Boundary%kpp_v_flux, Time )
       call data_override('OCN', 't_flux',    Ice_Ocean_Boundary%t_flux   , Time )
       call data_override('OCN', 'q_flux',    Ice_Ocean_Boundary%q_flux   , Time )
       call data_override('OCN', 'salt_flux', Ice_Ocean_Boundary%salt_flux, Time )

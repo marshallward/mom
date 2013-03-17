@@ -2915,6 +2915,9 @@ subroutine get_ocean_sbc(Time, Ice_ocean_boundary, Thickness, Dens, Ext_mode, T_
             jj = j + j_shift
             Velocity%smf_bgrid(ii,jj,1) = Ice_ocean_boundary%u_flux(i,j)*Grd%umask(ii,jj,1)
             Velocity%smf_bgrid(ii,jj,2) = Ice_ocean_boundary%v_flux(i,j)*Grd%umask(ii,jj,1)
+
+            Velocity%kpp_smf_bgrid(ii,jj,1) = Ice_ocean_boundary%kpp_u_flux(i,j)*Grd%umask(ii,jj,1)
+            Velocity%kpp_smf_bgrid(ii,jj,2) = Ice_ocean_boundary%kpp_v_flux(i,j)*Grd%umask(ii,jj,1)
          enddo
       enddo
   endif
@@ -2927,6 +2930,11 @@ subroutine get_ocean_sbc(Time, Ice_ocean_boundary, Thickness, Dens, Ext_mode, T_
             tmp_y = -Grd%sin_rot(i,j)*Velocity%smf_bgrid(i,j,1) + Grd%cos_rot(i,j)*Velocity%smf_bgrid(i,j,2)
             Velocity%smf_bgrid(i,j,1) = tmp_x
             Velocity%smf_bgrid(i,j,2) = tmp_y
+
+            tmp_x =  Grd%cos_rot(i,j)*Velocity%kpp_smf_bgrid(i,j,1) + Grd%sin_rot(i,j)*Velocity%smf_bgrid(i,j,2)
+            tmp_y = -Grd%sin_rot(i,j)*Velocity%kpp_smf_bgrid(i,j,1) + Grd%cos_rot(i,j)*Velocity%smf_bgrid(i,j,2)
+            Velocity%kpp_smf_bgrid(i,j,1) = tmp_x
+            Velocity%kpp_smf_bgrid(i,j,2) = tmp_y
          enddo
       enddo
   endif
@@ -2934,6 +2942,7 @@ subroutine get_ocean_sbc(Time, Ice_ocean_boundary, Thickness, Dens, Ext_mode, T_
   ! mpp update domain is needed for vertical mixing schemes such
   ! as KPP and GOTM, as well as to get c-grid version of smf. 
   call mpp_update_domains(Velocity%smf_bgrid(:,:,1),Velocity%smf_bgrid(:,:,2),Dom%domain2d,gridtype=BGRID_NE)
+  call mpp_update_domains(Velocity%kpp_smf_bgrid(:,:,1),Velocity%kpp_smf_bgrid(:,:,2),Dom%domain2d,gridtype=BGRID_NE)
   
   ! average the b-grid smf to get c-grid version.
   ! if running MOM_BGRID, then smf_cgrid is purely diagnostic.   
