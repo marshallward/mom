@@ -119,6 +119,8 @@ module ice_model_mod
   type :: atmos_ice_boundary_type 
      real, dimension(:,:,:), pointer :: u_flux  =>NULL()
      real, dimension(:,:,:), pointer :: v_flux  =>NULL()
+     real, dimension(:,:,:), pointer :: kpp_u_flux => NULL()
+     real, dimension(:,:,:), pointer :: kpp_v_flux => NULL()
      real, dimension(:,:,:), pointer :: u_star  =>NULL()
      real, dimension(:,:,:), pointer :: t_flux  =>NULL()
      real, dimension(:,:,:), pointer :: q_flux  =>NULL()
@@ -194,6 +196,8 @@ contains
     call update_ice_model_fast_old (Ice, Atmos_boundary%fluxes,  &
                                          Atmos_boundary%u_flux,  &
                                          Atmos_boundary%v_flux,  &
+                                         Atmos_boundary%kpp_u_flux, &
+                                         Atmos_boundary%kpp_v_flux, &
                                          Atmos_boundary%u_star,  &
                                          Atmos_boundary%sw_flux_nir_dir, &
                                          Atmos_boundary%sw_flux_nir_dif, &
@@ -229,6 +233,8 @@ contains
           do i = isd, ied
              Ice % flux_u_top(i,j,k)  = 0.0
              Ice % flux_v_top(i,j,k)  = 0.0
+             Ice % kpp_flux_u_top(i,j,k)  = 0.0
+             Ice % kpp_flux_v_top(i,j,k)  = 0.0
           enddo
        enddo
     enddo
@@ -269,12 +275,14 @@ contains
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
   ! sum_top_quantities - sum fluxes for later use by ice/ocean slow physics      !
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
-  subroutine sum_top_quantities ( Ice, Atmos_boundary_fluxes, flux_u,  flux_v, flux_t,  flux_q, &
+  subroutine sum_top_quantities ( Ice, Atmos_boundary_fluxes, flux_u,  flux_v, &
+         kpp_flux_u, kpp_flux_v, flux_t,  flux_q, &
          flux_sw_nir_dir, flux_sw_nir_dif, flux_sw_vis_dir, flux_sw_vis_dif,&
          flux_lw, lprec,   fprec, flux_lh )
     type (ice_data_type),            intent(inout)  :: Ice
     type(coupler_3d_bc_type),        intent(inout)  :: Atmos_boundary_fluxes
     real, intent(in), dimension(isc:iec,jsc:jec,km) :: flux_u,  flux_v, flux_t, flux_q
+    real, intent(in), dimension(isc:iec,jsc:jec,km) :: kpp_flux_u,  kpp_flux_v
     real, intent(in), dimension(isc:iec,jsc:jec,km) :: flux_lw, lprec, fprec, flux_lh
     real, intent(in), dimension(isc:iec,jsc:jec,km) :: flux_sw_nir_dir
     real, intent(in), dimension(isc:iec,jsc:jec,km) :: flux_sw_nir_dif
@@ -290,6 +298,8 @@ contains
           do i = isc, iec
              Ice % flux_u_top(i,j,k)  = Ice % flux_u_top(i,j,k)  + flux_u(i,j,k)
              Ice % flux_v_top(i,j,k)  = Ice % flux_v_top(i,j,k)  + flux_v(i,j,k)
+             Ice % kpp_flux_u_top(i,j,k) = Ice % kpp_flux_u_top(i,j,k) + kpp_flux_u(i,j,k)
+             Ice % kpp_flux_v_top(i,j,k) = Ice % kpp_flux_v_top(i,j,k) + kpp_flux_v(i,j,k)
              Ice % flux_t_top(i,j,k)  = Ice % flux_t_top(i,j,k)  + flux_t(i,j,k)
              Ice % flux_q_top(i,j,k)  = Ice % flux_q_top(i,j,k)  + flux_q(i,j,k)
              Ice % flux_sw_nir_dir_top(i,j,k) = Ice % flux_sw_nir_dir_top(i,j,k) + flux_sw_nir_dir(i,j,k)
@@ -365,6 +375,11 @@ contains
              v                       = Ice % flux_v_top(i,j,k)  * divid
              Ice % flux_u_top(i,j,k) = u*cos_rot(i,j)-v*sin_rot(i,j) ! rotate stress from lat/lon
              Ice % flux_v_top(i,j,k) = v*cos_rot(i,j)+u*sin_rot(i,j) ! to ocean coordinates
+             
+             u                       = Ice % kpp_flux_u_top(i,j,k)  * divid
+             v                       = Ice % kpp_flux_v_top(i,j,k)  * divid
+             Ice % kpp_flux_u_top(i,j,k) = u*cos_rot(i,j)-v*sin_rot(i,j) ! rotate stress from lat/lon
+             Ice % kpp_flux_v_top(i,j,k) = v*cos_rot(i,j)+u*sin_rot(i,j) ! to ocean coordinates
           end do
        end do
     end do
@@ -374,6 +389,12 @@ contains
        do k=1,km
           call vel_t_to_uv( -Ice%flux_u_top(:,:,k),-Ice%flux_v_top(:,:,k), &
                Ice%flux_u_top(isc:iec,jsc:jec,k), Ice%flux_v_top(isc:iec,jsc:jec,k) )
+       end do
+       
+       call mpp_update_domains(Ice%kpp_flux_u_top, Ice%kpp_flux_v_top, Domain)
+       do k=1,km
+          call vel_t_to_uv(-Ice%kpp_flux_u_top(:,:,k), -Ice%kpp_flux_v_top(:,:,k), &
+               Ice%kpp_flux_u_top(isc:iec,jsc:jec,k), Ice%kpp_flux_v_top(isc:iec,jsc:jec,k) )
        end do
     endif
 
@@ -450,6 +471,8 @@ contains
 
     Ice % flux_u  = all_avg( Ice % flux_u_top(isc:iec,jsc:jec,:) , part_size_uv )
     Ice % flux_v  = all_avg( Ice % flux_v_top(isc:iec,jsc:jec,:) , part_size_uv )
+    Ice % kpp_flux_u = all_avg( Ice % kpp_flux_u_top(isc:iec,jsc:jec,:), part_size_uv )
+    Ice % kpp_flux_v = all_avg( Ice % kpp_flux_v_top(isc:iec,jsc:jec,:), part_size_uv )
     Ice % flux_t  = all_avg( Ice % flux_t_top , part_size )
     Ice % flux_q  = all_avg( Ice % flux_q_top , part_size )
     Ice % flux_sw_nir_dir = all_avg( Ice % flux_sw_nir_dir_top, part_size )
@@ -715,13 +738,15 @@ contains
   ! update_ice_model_fast - records fluxes (in Ice) and calculates ice temp. on  !
   !                         (fast) atmospheric timestep (see coupler_main.f90)   !
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
-  subroutine update_ice_model_fast_old (Ice, Atmos_boundary_fluxes, flux_u,  flux_v, u_star, &
+  subroutine update_ice_model_fast_old (Ice, Atmos_boundary_fluxes, flux_u,  flux_v, &
+       kpp_flux_u, kpp_flux_v, u_star, &
        flux_sw_nir_dir, flux_sw_nir_dif, flux_sw_vis_dir, flux_sw_vis_dif,&
        flux_lw, flux_t, flux_q, dhdt, dedt, drdt, lprec, fprec, coszen, p_surf )
 
     type (ice_data_type),             intent(inout) :: Ice
     type(coupler_3d_bc_type),         intent(inout) :: Atmos_boundary_fluxes
     real, dimension(isc:iec,jsc:jec,km), intent(in) :: flux_u,  flux_v  ! surface stress (+ up)
+    real, dimension(isc:iec,jsc:jec,km), intent(in) :: kpp_flux_u, kpp_flux_v  ! kpp-dependent surface stress (+ up)
     real, dimension(isc:iec,jsc:jec,km), intent(in) :: u_star           ! friction velocity (for ocean roughness)
     real, dimension(isc:iec,jsc:jec,km), intent(in) :: flux_lw          ! net longwave radiation (+ down)
     real, dimension(isc:iec,jsc:jec,km), intent(in) :: flux_t           ! sensible heat flux (+ up)
@@ -741,6 +766,7 @@ contains
     real, dimension(isc:iec,jsc:jec,km) :: flux_sw_vis_dir_new
     real, dimension(isc:iec,jsc:jec,km) :: flux_sw_vis_dif_new
     real, dimension(isc:iec,jsc:jec,km) :: flux_u_new, flux_v_new, lprec_new, fprec_new
+    real, dimension(isc:iec,jsc:jec,km) :: kpp_flux_u_new, kpp_flux_v_new
     integer                             :: dy, sc, i, j, k
     real                                :: dt_fast, ts_new, dts, hf, hfd, latent
     logical                             :: sent
@@ -760,6 +786,8 @@ contains
           do i = isc, iec
              flux_u_new(i,j,k)  = flux_u(i,j,k)
              flux_v_new(i,j,k)  = flux_v(i,j,k)
+             kpp_flux_u_new(i,j,k)  = kpp_flux_u(i,j,k)
+             kpp_flux_v_new(i,j,k)  = kpp_flux_v(i,j,k)
              flux_t_new(i,j,k)  = flux_t(i,j,k)
              flux_q_new(i,j,k)  = flux_q(i,j,k)
              flux_lh_new(i,j,k) = hlv*flux_q(i,j,k)
@@ -891,7 +919,8 @@ contains
     if (id_alb_nir_dif>0) sent = send_data(id_alb_nir_dif, all_avg(Ice%albedo_nir_dif,Ice%part_size(isc:iec,jsc:jec,:)), &
          Ice%Time, mask=Ice%mask)
 
-    call sum_top_quantities ( Ice, Atmos_boundary_fluxes, flux_u_new,  flux_v_new, flux_t_new, &
+    call sum_top_quantities ( Ice, Atmos_boundary_fluxes, flux_u_new,  flux_v_new, &
+      kpp_flux_u_new, kpp_flux_v_new, flux_t_new, &
       flux_q_new, flux_sw_nir_dir_new, flux_sw_nir_dif_new, flux_sw_vis_dir_new,               &
       flux_sw_vis_dif_new, flux_lw_new, lprec_new,   fprec_new,  flux_lh_new )
 
@@ -1099,6 +1128,9 @@ contains
           do i = isc, iec
              Ice%flux_u_top(i,j,k) = fx_wat(i,j)  ! stress of ice on ocean
              Ice%flux_v_top(i,j,k) = fy_wat(i,j)  !
+             
+             Ice%kpp_flux_u_top(i,j,k) = fx_wat(i,j)  ! stress of ice on ocean
+             Ice%kpp_flux_v_top(i,j,k) = fy_wat(i,j)  !
           enddo
        enddo
     end do
@@ -1769,8 +1801,10 @@ subroutine atm_ice_bnd_type_chksum(id, timestep, bnd_type)
 
     outunit = stdout()
     write(outunit,*) 'BEGIN CHECKSUM(atmos_ice_boundary_type):: ', id, timestep
-    write(outunit,100) 'atm_ice_bnd_type%u_flux          ',mpp_chksum(bnd_type%u_flux)          
+    write(outunit,100) 'atm_ice_bnd_type%u_flux          ',mpp_chksum(bnd_type%u_flux)
     write(outunit,100) 'atm_ice_bnd_type%v_flux          ',mpp_chksum(bnd_type%v_flux)
+    write(outunit,100) 'atm_ice_bnd_type%kpp_u_flux      ',mpp_chksum(bnd_type%kpp_u_flux)
+    write(outunit,100) 'atm_ice_bnd_type%kpp_v_flux      ',mpp_chksum(bnd_type%kpp_v_flux)
     write(outunit,100) 'atm_ice_bnd_type%u_star          ',mpp_chksum(bnd_type%u_star)
     write(outunit,100) 'atm_ice_bnd_type%t_flux          ',mpp_chksum(bnd_type%t_flux)
     write(outunit,100) 'atm_ice_bnd_type%q_flux          ',mpp_chksum(bnd_type%q_flux)

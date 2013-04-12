@@ -553,6 +553,7 @@ module ocean_types_mod
      real, dimension(isd:ied,jsd:jed,nk,2,3) :: u               ! horz velocity (m/s) in i,j directions at 3 time levels
      real, dimension(isd:ied,jsd:jed,2)      :: smf             ! momentum flux per mass into ocean surface at uv point (N/m^2)
      real, dimension(isd:ied,jsd:jed,2)      :: smf_bgrid       ! momentum flux per mass into ocean surface at Bgrid uv point (N/m^2)
+     real, dimension(isd:ied,jsd:jed,2)      :: kpp_smf_bgrid   ! kpp-dependent momentum flux per mass into ocean surface at Bgrid uv point (N/m^2)
      real, dimension(isd:ied,jsd:jed,2)      :: smf_cgrid       ! momentum flux per mass into ocean surface at Cgrid u/v points (N/m^2)
      real, dimension(isd:ied,jsd:jed,2)      :: bmf             ! momentum flux per mass into ocean bottom  (N/m^2)
      real, dimension(isd:ied,jsd:jed)        :: gamma           ! dimensionful bottom drag coefficient (kg/(m^2 sec))
@@ -1076,6 +1077,7 @@ module ocean_types_mod
      real, _ALLOCATABLE, dimension(:,:,:,:,:) :: u               _NULL ! horz velocity (m/s) in i,j directions at 3 time levels
      real, _ALLOCATABLE, dimension(:,:,:)     :: smf             _NULL ! momentum flux into ocn surface (N/m^2) at uv point
      real, _ALLOCATABLE, dimension(:,:,:)     :: smf_bgrid       _NULL ! momentum flux into ocn surface (N/m^2) at Bgrid uv point
+     real, _ALLOCATABLE, dimension(:,:,:)     :: kpp_smf_bgrid   _NULL ! kpp-dependent momentum flux into ocn surface (N/m^2) at Bgrid uv point
      real, _ALLOCATABLE, dimension(:,:,:)     :: smf_cgrid       _NULL ! momentum flux into ocn surface (N/m^2) at Cgrid u/v points
      real, _ALLOCATABLE, dimension(:,:,:)     :: bmf             _NULL ! momentum flux per mass into ocean bottom  (N/m^2)
      real, _ALLOCATABLE, dimension(:,:)       :: gamma           _NULL ! dimensionful bottom drag coefficient (kg/(m^2 sec))
@@ -1185,6 +1187,8 @@ module ocean_types_mod
   type, public :: ice_ocean_boundary_type
      real, pointer, dimension(:,:) :: u_flux          =>NULL() ! i-directed wind stress into ocean (Pa) 
      real, pointer, dimension(:,:) :: v_flux          =>NULL() ! j-directed wind stress into ocean (Pa) 
+     real, pointer, dimension(:,:) :: kpp_u_flux      =>NULL() ! i-directed kpp-specific wind stress into ocean (Pa) 
+     real, pointer, dimension(:,:) :: kpp_v_flux      =>NULL() ! j-directed kpp-specific wind stress into ocean (Pa) 
      real, pointer, dimension(:,:) :: t_flux          =>NULL() ! sensible heat flux into ocean (W/m2) 
      real, pointer, dimension(:,:) :: q_flux          =>NULL() ! specific humidity flux (kg/m2/s)
      real, pointer, dimension(:,:) :: salt_flux       =>NULL() ! salt flux (kg/m2/s)

@@ -552,6 +552,8 @@ integer :: id_temp_calving_eff   =-1
 
 integer :: id_tau_x          =-1
 integer :: id_tau_y          =-1
+integer :: id_kpp_tau_x          =-1
+integer :: id_kpp_tau_y          =-1
 integer :: id_tau_curl       =-1
 integer :: id_ekman_we       =-1
 integer :: id_ekman_heat     =-1
@@ -1517,6 +1519,11 @@ subroutine ocean_sbc_diag_init(Time, Dens, T_prog)
        missing_value=missing_value,range=(/-10.,10./),                       &
        standard_name='surface_downward_x_stress')
 
+  id_kpp_tau_x = register_diag_field('ocean_model', 'kpp_tau_x', Grd%vel_axes_u(1:2), &
+       Time%model_time, 'i-directed kpp-dependent wind stress forcing u-velocity', 'N/m^2',&
+       missing_value=missing_value,range=(/-10.,10./),                       &
+       standard_name='surface_downward_kpp_x_stress')
+
   id_tau_x_flux_correction = register_diag_field('ocean_model','tau_x_flux_correction',      &
        Grd%vel_axes_u(1:2),                                                                  &
        Time%model_time, 'i-directed wind stress flux correction forcing u-velocity', 'N/m^2',&
@@ -1532,6 +1539,11 @@ subroutine ocean_sbc_diag_init(Time, Dens, T_prog)
        Time%model_time, 'j-directed wind stress forcing v-velocity', 'N/m^2',&
        missing_value=missing_value,range=(/-10.,10./),                       &
        standard_name='surface_downward_y_stress') 
+
+  id_kpp_tau_y = register_diag_field('ocean_model','kpp_tau_y', Grd%vel_axes_u(1:2), &
+       Time%model_time, 'j-directed kpp-dependent wind stress forcing v-velocity', 'N/m^2',&
+       missing_value=missing_value,range=(/-10.,10./),                       &
+       standard_name='surface_downward_kpp_y_stress') 
 
   id_tau_y_flux_correction = register_diag_field('ocean_model','tau_y_flux_correction',     &
        Grd%vel_axes_v(1:2),                                                                 &
@@ -2915,6 +2927,9 @@ subroutine get_ocean_sbc(Time, Ice_ocean_boundary, Thickness, Dens, Ext_mode, T_
             jj = j + j_shift
             Velocity%smf_bgrid(ii,jj,1) = Ice_ocean_boundary%u_flux(i,j)*Grd%umask(ii,jj,1)
             Velocity%smf_bgrid(ii,jj,2) = Ice_ocean_boundary%v_flux(i,j)*Grd%umask(ii,jj,1)
+
+            Velocity%kpp_smf_bgrid(ii,jj,1) = Ice_ocean_boundary%kpp_u_flux(i,j)*Grd%umask(ii,jj,1)
+            Velocity%kpp_smf_bgrid(ii,jj,2) = Ice_ocean_boundary%kpp_v_flux(i,j)*Grd%umask(ii,jj,1)
          enddo
       enddo
   endif
@@ -2927,6 +2942,11 @@ subroutine get_ocean_sbc(Time, Ice_ocean_boundary, Thickness, Dens, Ext_mode, T_
             tmp_y = -Grd%sin_rot(i,j)*Velocity%smf_bgrid(i,j,1) + Grd%cos_rot(i,j)*Velocity%smf_bgrid(i,j,2)
             Velocity%smf_bgrid(i,j,1) = tmp_x
             Velocity%smf_bgrid(i,j,2) = tmp_y
+
+            tmp_x =  Grd%cos_rot(i,j)*Velocity%kpp_smf_bgrid(i,j,1) + Grd%sin_rot(i,j)*Velocity%smf_bgrid(i,j,2)
+            tmp_y = -Grd%sin_rot(i,j)*Velocity%kpp_smf_bgrid(i,j,1) + Grd%cos_rot(i,j)*Velocity%smf_bgrid(i,j,2)
+            Velocity%kpp_smf_bgrid(i,j,1) = tmp_x
+            Velocity%kpp_smf_bgrid(i,j,2) = tmp_y
          enddo
       enddo
   endif
@@ -2934,6 +2954,7 @@ subroutine get_ocean_sbc(Time, Ice_ocean_boundary, Thickness, Dens, Ext_mode, T_
   ! mpp update domain is needed for vertical mixing schemes such
   ! as KPP and GOTM, as well as to get c-grid version of smf. 
   call mpp_update_domains(Velocity%smf_bgrid(:,:,1),Velocity%smf_bgrid(:,:,2),Dom%domain2d,gridtype=BGRID_NE)
+  call mpp_update_domains(Velocity%kpp_smf_bgrid(:,:,1),Velocity%kpp_smf_bgrid(:,:,2),Dom%domain2d,gridtype=BGRID_NE)
   
   ! average the b-grid smf to get c-grid version.
   ! if running MOM_BGRID, then smf_cgrid is purely diagnostic.   
@@ -4351,6 +4372,16 @@ subroutine ocean_sbc_diag(Time, Velocity, Thickness, Dens, T_prog, Ice_ocean_bou
 
      ! j-directed wind stress (N/m^2)
      if (id_tau_y > 0) used =  send_data(id_tau_y, Velocity%smf_bgrid(:,:,2), &
+                               Time%model_time, rmask=wind_mask(:,:),         &
+                               is_in=isc, js_in=jsc, ie_in=iec, je_in=jec)  
+
+     ! i-directed kpp-dependent wind stress (N/m^2)
+     if (id_kpp_tau_x > 0) used = send_data(id_kpp_tau_x, Velocity%kpp_smf_bgrid(:,:,1), &
+                               Time%model_time, rmask=wind_mask(:,:),         &
+                               is_in=isc, js_in=jsc, ie_in=iec, je_in=jec)
+
+     ! j-directed kpp-dependent wind stress (N/m^2)
+     if (id_kpp_tau_y > 0) used = send_data(id_kpp_tau_y, Velocity%kpp_smf_bgrid(:,:,2), &
                                Time%model_time, rmask=wind_mask(:,:),         &
                                is_in=isc, js_in=jsc, ie_in=iec, je_in=jec)  
 
