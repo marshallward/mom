@@ -564,7 +564,7 @@ subroutine surface_flux_1d (                                           &
 
      kpp_rho_drag = kpp_drag_m * rho
      kpp_flux_u = kpp_rho_drag * kpp_u_dif   ! kpp-dependent zonal stress (Nt/m**2)
-     kpp_flux_v = kpp_rho_drag * kpp_v_dif   ! kpp-dependent meridional stress 
+     kpp_flux_v = kpp_rho_drag * kpp_v_dif   ! kpp-dependent meridional stress
 
   elsewhere
      ! zero-out un-available data in output only fields
@@ -595,7 +595,7 @@ subroutine surface_flux_1d (                                           &
      where(avail)
         dtaudv_atm = -rho_drag
         dtaudu_atm = -rho_drag
-        
+
         kpp_dtaudv_atm = -kpp_rho_drag
         kpp_dtaudu_atm = -kpp_rho_drag
      endwhere
@@ -603,7 +603,7 @@ subroutine surface_flux_1d (                                           &
      where(avail)
         dtaudu_atm = -cd_m*rho*(dw_atmdu*u_dif + w_atm)
         dtaudv_atm = -cd_m*rho*(dw_atmdv*v_dif + w_atm)
-        
+
         kpp_dtaudu_atm = -kpp_cd_m*rho*(dw_atmdu*kpp_u_dif + kpp_w_atm)
         kpp_dtaudv_atm = -kpp_cd_m*rho*(dw_atmdv*kpp_v_dif + kpp_w_atm)
      endwhere

@@ -375,7 +375,7 @@ contains
              v                       = Ice % flux_v_top(i,j,k)  * divid
              Ice % flux_u_top(i,j,k) = u*cos_rot(i,j)-v*sin_rot(i,j) ! rotate stress from lat/lon
              Ice % flux_v_top(i,j,k) = v*cos_rot(i,j)+u*sin_rot(i,j) ! to ocean coordinates
-             
+
              u                       = Ice % kpp_flux_u_top(i,j,k)  * divid
              v                       = Ice % kpp_flux_v_top(i,j,k)  * divid
              Ice % kpp_flux_u_top(i,j,k) = u*cos_rot(i,j)-v*sin_rot(i,j) ! rotate stress from lat/lon
@@ -390,7 +390,7 @@ contains
           call vel_t_to_uv( -Ice%flux_u_top(:,:,k),-Ice%flux_v_top(:,:,k), &
                Ice%flux_u_top(isc:iec,jsc:jec,k), Ice%flux_v_top(isc:iec,jsc:jec,k) )
        end do
-       
+
        call mpp_update_domains(Ice%kpp_flux_u_top, Ice%kpp_flux_v_top, Domain)
        do k=1,km
           call vel_t_to_uv(-Ice%kpp_flux_u_top(:,:,k), -Ice%kpp_flux_v_top(:,:,k), &
@@ -1128,7 +1128,7 @@ contains
           do i = isc, iec
              Ice%flux_u_top(i,j,k) = fx_wat(i,j)  ! stress of ice on ocean
              Ice%flux_v_top(i,j,k) = fy_wat(i,j)  !
-             
+
              Ice%kpp_flux_u_top(i,j,k) = fx_wat(i,j)  ! stress of ice on ocean
              Ice%kpp_flux_v_top(i,j,k) = fy_wat(i,j)  !
           enddo

@@ -475,7 +475,7 @@ public  :: iceClocka,iceClockb,iceClockc
     Ice % swdn            =0.
     Ice % flux_u_top      =0. 
     Ice % flux_v_top      =0.
-    Ice % kpp_flux_u_top  =0. 
+    Ice % kpp_flux_u_top  =0.
     Ice % kpp_flux_v_top  =0.
     Ice % sea_lev         =0.
     Ice % part_size       =0.
