@@ -268,6 +268,7 @@ logical :: ncar_ocean_flux       = .false.
 logical :: ncar_ocean_flux_orig  = .false. ! for backwards compatibility 
 logical :: raoult_sat_vap        = .false.
 logical :: do_simple             = .false.
+logical :: alt_flux_calc         = .false.
 
 
 namelist /surface_flux_nml/ no_neg_q,             &
@@ -280,7 +281,8 @@ namelist /surface_flux_nml/ no_neg_q,             &
                             ncar_ocean_flux,      &
                             ncar_ocean_flux_orig, &
                             raoult_sat_vap,       &
-                            do_simple       
+                            do_simple,            &
+                            alt_flux_calc
    
 
 
@@ -381,7 +383,8 @@ subroutine surface_flux_1d (                                           &
        kpp_u_dif, kpp_v_dif, &
        rho_drag, drag_t,    drag_m,   drag_q,    rho,      &
        q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust,   &
-       kpp_w_atm, kpp_cd_m, kpp_drag_m, kpp_rho_drag
+       kpp_w_atm, kpp_cd_m, kpp_drag_m, kpp_rho_drag,      &
+       alt_cd_t, alt_cd_q
 
   integer :: i, nbad
 
@@ -487,7 +490,7 @@ subroutine surface_flux_1d (                                           &
   ! Please do not commit this to any repo!!
   call mo_drag (thv_atm, thv_surf, z_atm,                  &
        rough_mom, rough_heat, rough_moist, kpp_w_atm,      &
-       kpp_cd_m, cd_t, cd_q, u_star, b_star, avail         )
+       kpp_cd_m, alt_cd_t, alt_cd_q, u_star, b_star, avail  )
 
   ! Call it again to get the correct values
   !  monin-obukhov similarity theory 
@@ -500,11 +503,17 @@ subroutine surface_flux_1d (                                           &
 
     ! Same deal; call it twice to get kpp_cd_m
     call  ncar_ocean_fluxes (kpp_w_atm, th_atm, t_surf0, q_atm, q_surf0, z_atm, &
-                             seawater, kpp_cd_m, cd_t, cd_q, u_star, b_star     )
+                             seawater, kpp_cd_m, alt_cd_t, alt_cd_q, u_star, b_star)
     
     call  ncar_ocean_fluxes (w_atm, th_atm, t_surf0, q_atm, q_surf0, z_atm, &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
   end if
+
+  ! Probably inefficient, but I don't care!
+  if (alt_flux_calc) then
+      cd_t = alt_cd_t
+      cd_q = alt_cd_q
+  endif
 
   where (avail)
      ! scale momentum drag coefficient on orographic roughness
