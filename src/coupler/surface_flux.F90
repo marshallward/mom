@@ -509,18 +509,29 @@ subroutine surface_flux_1d (                                           &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
   end if
 
-  ! Probably inefficient, but I don't care!
   if (alt_flux_calc) then
-      cd_t = alt_cd_t
-      cd_q = alt_cd_q
-  endif
-
+    where (avail)
+        drag_t = alt_cd_t * kpp_w_atm
+        drag_q = alt_cd_q * kpp_w_atm
+    end where
+  else
+    where (avail)
+        drag_t = cd_t * w_atm
+        drag_q = cd_q * w_atm
+    endwhere
+  end if
+  
   where (avail)
      ! scale momentum drag coefficient on orographic roughness
      cd_m = cd_m*(log(z_atm/rough_mom+1)/log(z_atm/rough_scale+1))**2
      ! surface layer drag coefficients
-     drag_t = cd_t * w_atm
-     drag_q = cd_q * w_atm
+     !if (alt_flux_calc) then
+     !    drag_t = cd_t * kpp_w_atm
+     !    drag_q = cd_q * kpp_w_atm
+     !else
+     !   drag_t = cd_t * w_atm
+     !   drag_q = cd_q * w_atm
+     !endif
      drag_m = cd_m * w_atm
 
      kpp_cd_m = kpp_cd_m * (log(z_atm / rough_mom + 1) / log(z_atm / rough_scale + 1))**2
