@@ -5279,7 +5279,8 @@ subroutine read_barotropic(Time, Ext_mode, use_blobs)
 
   if (use_blobs) then
       id_restart(14) = register_restart_field(Bar_restart, file_name, 'deta_dt', &
-                       Ext_mode%deta_dt(:,:), domain=Dom%domain2d)
+                                Ext_mode%deta_dt(:,:), domain=Dom%domain2d, &
+                                mandatory=.false.)
   endif 
 
 

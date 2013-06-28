@@ -617,9 +617,9 @@ subroutine ocean_velocity_init (Grid, Domain, Time, Time_steps, Ocean_options, &
           Dom%domain2d )
      if (use_blobs) then
         id_restart_px = register_restart_field(Vel_restart, filename,'pressurex',Velocity%press_force(:,:,:,1),&
-             Dom%domain2d )
+             Dom%domain2d, mandatory=.false.)
         id_restart_py = register_restart_field(Vel_restart, filename,'pressurey',Velocity%press_force(:,:,:,2),&
-             Dom%domain2d )        
+             Dom%domain2d, mandatory=.false.)
      endif
      filename = 'ocean_velocity_advection.res.nc'
      id_restart_advu = register_restart_field(Adv_restart, filename,'advectionu',Velocity%advection(:,:,:,1,tau_m1),&

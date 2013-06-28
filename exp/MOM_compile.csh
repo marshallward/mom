@@ -4,7 +4,7 @@
 set echo
 set platform      = vayu        # A unique identifier for your platfo
                                 # This corresponds to the mkmf templates in $root/bin dir.
-set type          = MOM_SIS     # Type of the experiment
+set type          = MOM_solo     # Type of the experiment
 set help = 0
 
 set argv = (`getopt -u -o h -l type: -l platform:  -l help  --  $*`)

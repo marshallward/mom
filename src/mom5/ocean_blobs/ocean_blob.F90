@@ -861,12 +861,12 @@ contains
        write(stdoutunit, '(/a)') 'Reading in some gridded blobs data from '//trim(filename)
        call restore_state( gridded_restart, id_restart(1) )
 
-    else
-      if (.NOT.Time%init) then
-           call mpp_error(FATAL,&
-           'Expecting file '//trim(filename)//' to exist.&
-           &This file was not found and Time%init=.false.')
-      endif
+    !else
+    !  if (.NOT.Time%init) then
+    !       call mpp_error(FATAL,&
+    !       'Expecting file '//trim(filename)//' to exist.&
+    !       &This file was not found and Time%init=.false.')
+    !  endif
     endif
 
     ! Open the blob file and read in the blob attributes.
@@ -1043,12 +1043,12 @@ contains
             'blob, readrestart, number of non-empty blobs not equal to number'&
             //' of blobs read into global domain')
 
-    else
-       if (.NOT.Time%init) then
-          call mpp_error(FATAL,&
-               'Expecting file '//trim(filename)//' to exist.&
-               &This file was not found and Time%init=.false.')
-       endif
+    !else
+    !   if (.NOT.Time%init) then
+    !      call mpp_error(FATAL,&
+    !           'Expecting file '//trim(filename)//' to exist.&
+    !           &This file was not found and Time%init=.false.')
+    !   endif
 
     endif!found_restart
 

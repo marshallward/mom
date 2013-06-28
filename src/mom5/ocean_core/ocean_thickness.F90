@@ -2148,9 +2148,9 @@ subroutine thickness_restart (Time, Grid, Ext_mode, Thickness)
   elseif(tendency==TWO_LEVEL) then
      if (use_blobs) then
         id_restart_rho_dztL = register_restart_field(Thk_restart, file_name, 'rho_dztL', &
-             Thickness%rho_dztL(:,:,:,taup1), Dom%domain2d)
+             Thickness%rho_dztL(:,:,:,taup1), Dom%domain2d, mandatory=.false.)
         id_restart_rho_dztT = register_restart_field(Thk_restart, file_name, 'rho_dztT', &
-             Thickness%rho_dztT(:,:,:,taup1), Dom%domain2d)
+             Thickness%rho_dztT(:,:,:,taup1), Dom%domain2d, mandatory=.false.)
      else
         id_restart_rho_dzt = register_restart_field(Thk_restart,  file_name, 'rho_dzt',  &
              Thickness%rho_dzt(:,:,:,taup1), Dom%domain2d)
@@ -2170,9 +2170,9 @@ subroutine thickness_restart (Time, Grid, Ext_mode, Thickness)
        Thickness%pbot0(:,:), Dom%domain2d)
   if (use_blobs) then
      id_restart = register_restart_field(Thk_restart, file_name, 'dztloL', &
-          Thickness%dztloL(:,:,:), Dom%domain2d)
+          Thickness%dztloL(:,:,:), Dom%domain2d, mandatory=.false.)
      id_restart = register_restart_field(Thk_restart, file_name, 'dztupL', &
-          Thickness%dztupL(:,:,:), Dom%domain2d)
+          Thickness%dztupL(:,:,:), Dom%domain2d, mandatory=.false.)
   endif
   if(vert_coordinate_class==PRESSURE_BASED) then 
      id_restart = register_restart_field(Thk_restart, file_name, 'depth_st', &
