@@ -185,7 +185,7 @@
       type(axistype) :: unlim    !used by netCDF with mpp_append
       type(domain2d), pointer :: io_domain=>NULL()
       integer*8                             :: lenp
-      integer                               :: comm
+      integer                               :: comm, mode
       integer                               :: info, ierror
       integer,dimension(:), allocatable     :: glist(:)  
       integer                               ::lena, lenb
@@ -438,6 +438,9 @@
         call MPI_INFO_SET(info, "ind_wr_buffer_size", "16777216", ierror)
       endif
 
+      ! TODO: replace with the MOM communicator
+      comm = MPI_COMM_WORLD
+
 #else
 !added by fmi to read NC_BLKSZ and NC_BLKSZ_filename...
 
@@ -554,6 +557,54 @@
               if (.NOT.exists) call mpp_error(FATAL,'MPP_OPEN:'&
                    &//trim(mpp_file(unit)%name)//' does not exist.')
               error=NF__OPEN(trim(mpp_file(unit)%name),NF_NOWRITE,fsize,mpp_file(unit)%ncid);call netcdf_err(error,mpp_file(unit))
+              if( verbose )print '(a,i6,i16,i4)', 'MPP_OPEN: opening existing netCDF file: pe, ncid, time_axis_id=',&
+                   pe, mpp_file(unit)%ncid, mpp_file(unit)%id
+              mpp_file(unit)%format=form_flag ! need this for mpp_read
+              call mpp_read_meta(unit)
+          end if
+          mpp_file(unit)%opened = .TRUE.
+#elif PAR_ACCESS
+          if( action_flag.EQ.MPP_WRONLY )then
+              if(debug) write(*,*) 'Blocksize for create of ', trim(mpp_file(unit)%name),' is ', fsize
+              !error=NF__CREATE( trim(mpp_file(unit)%name), IOR(NF_NETCDF4,NF_CLASSIC_MODEL), inital, fsize, mpp_file(unit)%ncid )
+              mode = IOR(IOR(NF_NOCLOBBER, NF_PNETCDF), NF_NETCDF4)
+              error = NF_CREATE_PAR(trim(mpp_file(unit)%name), mode, comm, info, mpp_file(unit)%ncid)
+              call netcdf_err( error, mpp_file(unit) )
+              if( verbose )print '(a,i6,i16)', 'MPP_OPEN: new netCDF file: pe, ncid=', pe, mpp_file(unit)%ncid
+          else if( action_flag.EQ.MPP_OVERWR )then
+              if(debug) write(*,*) 'Blocksize for create of ', trim(mpp_file(unit)%name),' is ', fsize
+              !error=NF__CREATE( trim(mpp_file(unit)%name), IOR(NF_NETCDF4,NF_CLASSIC_MODEL), inital, fsize, mpp_file(unit)%ncid )
+              mode = IOR(IOR(NF_CLOBBER, NF_PNETCDF), NF_NETCDF4)
+              error = NF_CREATE_PAR(trim(mpp_file(unit)%name), mode, comm, info, mpp_file(unit)%ncid)
+              call netcdf_err( error, mpp_file(unit) )
+              action_flag = MPP_WRONLY !after setting clobber, there is no further distinction btwn MPP_WRONLY and MPP_OVERWR
+              if( verbose )print '(a,i6,i16)', 'MPP_OPEN: overwrite netCDF file: pe, ncid=', pe, mpp_file(unit)%ncid
+          else if( action_flag.EQ.MPP_APPEND )then
+              inquire(file=trim(mpp_file(unit)%name),EXIST=exists)
+              if (.NOT.exists) call mpp_error(FATAL,'MPP_OPEN:'&
+                   &//trim(mpp_file(unit)%name)//' does not exist.')
+              !error=NF__OPEN(trim(mpp_file(unit)%name),NF_WRITE,fsize,mpp_file(unit)%ncid);call netcdf_err(error,mpp_file(unit))
+              mode = IOR(IOR(NF_WRITE, NF_PNETCDF), NF_NETCDF4)
+              error = NF_OPEN_PAR(trim(mpp_file(unit)%name), mode, comm, info, mpp_file(unit)%ncid)
+!get the current time level of the file: writes to this file will be at next time level
+              error = NF_INQ_UNLIMDIM( mpp_file(unit)%ncid, unlim%did )
+              if( error.EQ.NF_NOERR )then
+                  error = NF_INQ_DIM( mpp_file(unit)%ncid, unlim%did, unlim%name, mpp_file(unit)%time_level )
+                  call netcdf_err( error, mpp_file(unit) )
+                  error = NF_INQ_VARID( mpp_file(unit)%ncid, unlim%name, mpp_file(unit)%id )
+                  call netcdf_err( error, mpp_file(unit), unlim )
+              end if
+              if( verbose )print '(a,i6,i16,i4)', 'MPP_OPEN: append to existing netCDF file: pe, ncid, time_axis_id=',&
+                   pe, mpp_file(unit)%ncid, mpp_file(unit)%id
+              mpp_file(unit)%format=form_flag ! need this for mpp_read
+!              call mpp_read_meta(unit)
+          else if( action_flag.EQ.MPP_RDONLY )then
+               inquire(file=trim(mpp_file(unit)%name),EXIST=exists)
+              if (.NOT.exists) call mpp_error(FATAL,'MPP_OPEN:'&
+                   &//trim(mpp_file(unit)%name)//' does not exist.')
+              !error=NF__OPEN(trim(mpp_file(unit)%name),NF_NOWRITE,fsize,mpp_file(unit)%ncid);call netcdf_err(error,mpp_file(unit))
+              mode = IOR(IOR(NF_NOWRITE, NF_PNETCDF), NF_NETCDF4)
+              error = NF_OPEN_PAR(trim(mpp_file(unit)%name), mode, comm, info, mpp_file(unit)%ncid)
               if( verbose )print '(a,i6,i16,i4)', 'MPP_OPEN: opening existing netCDF file: pe, ncid, time_axis_id=',&
                    pe, mpp_file(unit)%ncid, mpp_file(unit)%id
               mpp_file(unit)%format=form_flag ! need this for mpp_read

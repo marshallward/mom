@@ -332,6 +332,10 @@ use mpp_domains_mod,    only : mpp_get_domain_name, mpp_get_domain_npes
 use mpp_parameter_mod,  only : MPP_FILL_DOUBLE,MPP_FILL_INT
 use mpp_mod,            only : mpp_chksum
 
+#ifdef use_netCDF && PAR_ACCESS
+use mpi
+#endif
+
 implicit none
 private
 
