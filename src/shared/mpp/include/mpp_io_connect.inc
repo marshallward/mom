@@ -416,32 +416,27 @@
       if( form_flag.EQ.MPP_NETCDF )then
 #ifdef PAR_ACCESS  
       !adding some items for netcdf-4.... --fmi
-      if( .NOT.PRESENT(pelist)) then
-        allocate (glist(0:npes-1))
-        call mpp_get_current_pelist(glist, name, comm) 
-      end if
-      
+      !if( .NOT.PRESENT(pelist)) then
+      !  allocate (glist(0:npes-1))
+      !  call mpp_get_current_pelist(glist, name, comm) 
+      !end if
+
       !create info parts...
       call MPI_INFO_CREATE(info, ierror)
-      
-     !F2003 convention
-     !call get_enviornment_variable('NC_BLKSZ', ncblk)
-     call GETENV( 'NC_BLKSZ', ncblk)
-     ncblk = trim(ncblk)
-     
-  
-     if (ncblk /= "") then
-      
 
+      !F2003 convention
+      !call get_enviornment_variable('NC_BLKSZ', ncblk)
+      call GETENV( 'NC_BLKSZ', ncblk)
+      ncblk = trim(ncblk)
 
+      if (ncblk /= "") then
         call MPI_INFO_SET(info, "cb_buffer_size", ncblk, ierror)
         call MPI_INFO_SET(info, "ind_rd_buffer_size", ncblk, ierror)
         call MPI_INFO_SET(info, "ind_wr_buffer_size", ncblk, ierror)
-
-     else
+      else
         call MPI_INFO_SET(info, "ind_rd_buffer_size", "16777216", ierror)
         call MPI_INFO_SET(info, "ind_wr_buffer_size", "16777216", ierror)
-     endif
+      endif
 
 #else
 !added by fmi to read NC_BLKSZ and NC_BLKSZ_filename...

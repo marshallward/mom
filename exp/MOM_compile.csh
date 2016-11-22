@@ -8,8 +8,9 @@ set unit_testing = 0
 set help = 0
 set debug = 0
 set use_netcdf4 = 0
+set use_pnetcdf = 0
 
-set argv = (`getopt -u -o h -l type: -l platform: -l help -l unit_testing -l debug -l use_netcdf4 --  $*`)
+set argv = (`getopt -u -o h -l type: -l platform: -l help -l unit_testing -l debug -l use_netcdf4 -l use_pnetcdf --  $*`)
 while ("$argv[1]" != "--")
     switch ($argv[1])
         case --type:
@@ -22,6 +23,8 @@ while ("$argv[1]" != "--")
                 set debug = 1; breaksw
         case --use_netcdf4:
                 set use_netcdf4 = 1; breaksw
+        case --use_pnetcdf:
+                set use_pnetcdf = 1; breaksw
         case --help:
                 set help = 1;  breaksw
         case -h:
@@ -88,7 +91,13 @@ endif
 if ( $use_netcdf4 ) then
     set cppDefs = `echo $cppDefs | sed -e 's/-Duse_netCDF3//g'`
     set cppDefs = "$cppDefs -Duse_netCDF4"
+
+    # Enable parallel netcdf
+    if ( $use_pnetcdf ) then
+        set cppDefs = "$cppDefs -DPAR_ACCESS"
+    endif
 endif
+
 
 #
 # Users must ensure the correct environment file exists for their platform.
