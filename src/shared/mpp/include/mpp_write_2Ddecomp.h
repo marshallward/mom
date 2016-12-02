@@ -73,7 +73,13 @@
               else
                   allocate( gdata(1,1,1))
               endif
-              if(global_field_on_root_pe) then
+
+              if (parallel_netcdf) then
+                  ! TODO: This is a temporary fix, replace with per-domain writes
+                  call mpp_global_field(domain, data, gdata, position=position, &
+                                        flags=XUPDATE+YUPDATE, &
+                                        default_data=default_data)
+              else if(global_field_on_root_pe) then
                  call mpp_global_field( domain, data, gdata, position = position, &
                                         flags=XUPDATE+YUPDATE+GLOBAL_ROOT_ONLY,   &
                                         default_data=default_data)
@@ -101,7 +107,13 @@
               else
                  allocate( gdata(1,1,1))
               endif
-              if(global_field_on_root_pe) then
+
+              if (parallel_netcdf) then
+                 ! TODO: Temporary code; replace with per-domain write
+                 call mpp_global_field(domain, data, gdata, position=position, &
+                                        flags=XUPDATE+YUPDATE, &
+                                        default_data=default_data)
+              else if(global_field_on_root_pe) then
                  call mpp_global_field( io_domain, data, gdata, position = position, &
                                         flags=XUPDATE+YUPDATE+GLOBAL_ROOT_ONLY,      &
                                         default_data=default_data)
@@ -109,6 +121,8 @@
                  call mpp_global_field( io_domain, data, gdata, position = position, &
                                         default_data=default_data)
               endif
+
+              ! Domain check
               io_domain => NULL()
               if(mpp_file(unit)%write_on_this_pe ) then
                  call write_record( unit, field, size(gdata(:,:,:)), gdata, tstamp)

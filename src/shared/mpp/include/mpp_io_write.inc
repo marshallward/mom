@@ -766,6 +766,14 @@
              error = NF_DEF_VAR_DEFLATE(mpp_file(unit)%ncid, field%id, shuffle, deflate, deflate_level)
              call netcdf_err( error, mpp_file(unit), field=field )
           endif
+
+          if ( parallel_netcdf ) then
+             ! TODO: Check for an unlimited axis
+             error = NF_VAR_PAR_ACCESS(mpp_file(unit)%ncid, field%id, &
+                                       NF_COLLECTIVE)
+             call netcdf_err(error, mpp_file(unit), field=field)
+          end if
+
 #endif
 #endif    
       else
@@ -1277,6 +1285,21 @@
              if( i.EQ.field%time_axis_index )start(i) = mpp_file(unit)%time_level
              start(i) = max(start(i),1)
           end do
+
+          !! Testing: Domain override
+          !! TODO: Determine X and Y axis indices
+          !if( PRESENT(domain) )then
+          !   call mpp_get_compute_domain(domain, is, ie, js, je)
+          !   ! X axis (?)
+          !   start(1) = is
+          !   axsiz(1) = ie - is + 1
+
+          !   ! Y axis (?)
+          !   start(2) = js
+          !   axsiz(2) = je - js + 1
+
+          !   print *, "rank", mpp_pe(), "start", start, "axsiz", axsiz
+          !end if
 
           if( debug )print '(a,2i6,12i6)', 'WRITE_RECORD: PE, unit, start, axsiz=', pe, unit, start, axsiz
 #ifdef use_netCDF

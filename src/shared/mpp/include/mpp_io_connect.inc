@@ -194,9 +194,7 @@
       integer                               ::f_size, f_stat
       integer                               ::fsize, inital = 0
       character(len=128)                    :: f_test
-      
-      
-      
+
       call mpp_clock_begin(mpp_open_clock)
       if( .NOT.module_is_initialized )call mpp_error( FATAL, 'MPP_OPEN: must first call mpp_io_init.' )
       on_root_pe = mpp_pe() == mpp_root_pe()
@@ -211,6 +209,8 @@
 #ifndef use_netCDF
       if( form_flag.EQ.MPP_NETCDF ) &
            call mpp_error( FATAL, 'MPP_OPEN: To open a file with form=MPP_NETCDF, you must compile mpp_io with -Duse_netCDF.' )
+      if( parallel_netcdf ) &
+           call mpp_error( FATAL, 'MPP_OPEN: To use parallel netCDF, you must compile mpp_io with -Duse_netCDF.' )
 #endif     
       access_flag = MPP_SEQUENTIAL
       if( PRESENT(access) )access_flag = access
@@ -219,6 +219,12 @@
       fileset_flag = MPP_MULTI
       if( PRESENT(fileset) )fileset_flag = fileset
       if( threading_flag.EQ.MPP_SINGLE )fileset_flag = MPP_SINGLE
+
+      ! TODO: Integrate with the threading/fileset flag settings above
+      if (parallel_netcdf) then
+         threading_flag = MPP_MULTI
+         fileset_flag = MPP_SINGLE
+      end if
 
       io_domain_exist = .false.
       if( PRESENT(domain) ) then
@@ -232,7 +238,8 @@
          write_on_this_pe = .false.
          read_on_this_pe = .false.
       endif
-      if(form_flag == MPP_NETCDF .AND. action_flag .NE. MPP_RDONLY) then
+      ! Testing: Remove the netcdf threading safeguards
+      if(form_flag == MPP_NETCDF .AND. action_flag .NE. MPP_RDONLY .and. .not. parallel_netcdf) then
          if(fileset_flag .EQ.MPP_SINGLE .AND.  threading_flag.EQ.MPP_MULTI) then
             call mpp_error(FATAL, "mpp_io_connect.inc(mpp_open): multiple thread and single "// &
                 "file writing/appending is not supported for netCDF file")
@@ -241,12 +248,15 @@
             write_on_this_pe = .false.
             read_on_this_pe = .false.
          endif   
-      endif   
-   
-      if( io_domain_exist) then
+      endif
+
+      ! Testing: All pnetcdf ranks write to file, even if io domains exist
+      ! TODO: But should IO domains exist?
+      if( io_domain_exist .and. .not. parallel_netcdf ) then
           ! in this case, only write out from the root_pe of io_domain.
           write_on_this_pe = mpp_domain_is_tile_root_pe(io_domain)
-      endif 
+      endif
+
       if( action_flag == MPP_RDONLY) write_on_this_pe = .false.
       !get a unit number
       if( .NOT. write_on_this_pe .AND. action_flag.NE.MPP_RDONLY .AND. .NOT. io_domain_exist)then
@@ -308,8 +318,12 @@
                endif
             endif
          else
-            fileset_flag   = MPP_SINGLE
-            threading_flag = MPP_SINGLE
+            ! Testing: Disable the single-threaded override
+            ! TODO: Again, should io domains in this case?
+            if ( .not. parallel_netcdf ) then
+                fileset_flag   = MPP_SINGLE
+                threading_flag = MPP_SINGLE
+            end if
          endif
       else if( fileset_flag.EQ.MPP_MULTI ) then
          if(mpp_npes() > 10000) then
@@ -361,11 +375,11 @@
       end if  
           
 !threading: SINGLE or MULTI
-      if( threading_flag.EQ.MPP_MULTI )then
+      if( threading_flag.EQ.MPP_MULTI .and. .not. parallel_netcdf ) then
 !fileset: MULTI or SINGLE (only for multi-threaded I/O
           if( fileset_flag.EQ.MPP_SINGLE )then
               if( form_flag.EQ.MPP_NETCDF .AND. act.EQ.'WRITE' ) &
-                   call mpp_error( FATAL, 'MPP_OPEN: netCDF currently does not support single-file multi-threaded output.' )
+                 call mpp_error( FATAL, 'MPP_OPEN: netCDF currently does not support single-file multi-threaded output.' )
                    
 #ifdef _CRAYT3E    
               call ASSIGN( 'assign -I -F global.privpos f:'//trim(mpp_file(unit)%name), error )
@@ -373,7 +387,7 @@
           else if( fileset_flag.NE.MPP_MULTI )then
               call mpp_error( FATAL, 'MPP_OPEN: fileset must be one of MPP_MULTI or MPP_SINGLE.' )
           end if
-      else if( threading_flag.NE.MPP_SINGLE )then
+      else if( threading_flag.NE.MPP_SINGLE .and. .not. parallel_netcdf ) then
           call mpp_error( FATAL, 'MPP_OPEN: threading must be one of MPP_SINGLE or MPP_MULTI.' )
       end if
           
@@ -416,6 +430,7 @@
       if( form_flag.EQ.MPP_NETCDF )then
 #ifdef PAR_ACCESS  
       !adding some items for netcdf-4.... --fmi
+      !glist is neither declared or used, so removing for now -mlw
       !if( .NOT.PRESENT(pelist)) then
       !  allocate (glist(0:npes-1))
       !  call mpp_get_current_pelist(glist, name, comm) 
@@ -567,14 +582,14 @@
           if( action_flag.EQ.MPP_WRONLY )then
               if(debug) write(*,*) 'Blocksize for create of ', trim(mpp_file(unit)%name),' is ', fsize
               !error=NF__CREATE( trim(mpp_file(unit)%name), IOR(NF_NETCDF4,NF_CLASSIC_MODEL), inital, fsize, mpp_file(unit)%ncid )
-              mode = IOR(IOR(NF_NOCLOBBER, NF_PNETCDF), NF_NETCDF4)
+              mode = IOR(IOR(NF_NOCLOBBER, NF_MPIIO), NF_NETCDF4)
               error = NF_CREATE_PAR(trim(mpp_file(unit)%name), mode, comm, info, mpp_file(unit)%ncid)
               call netcdf_err( error, mpp_file(unit) )
               if( verbose )print '(a,i6,i16)', 'MPP_OPEN: new netCDF file: pe, ncid=', pe, mpp_file(unit)%ncid
           else if( action_flag.EQ.MPP_OVERWR )then
               if(debug) write(*,*) 'Blocksize for create of ', trim(mpp_file(unit)%name),' is ', fsize
               !error=NF__CREATE( trim(mpp_file(unit)%name), IOR(NF_NETCDF4,NF_CLASSIC_MODEL), inital, fsize, mpp_file(unit)%ncid )
-              mode = IOR(IOR(NF_CLOBBER, NF_PNETCDF), NF_NETCDF4)
+              mode = IOR(IOR(NF_CLOBBER, NF_MPIIO), NF_NETCDF4)
               error = NF_CREATE_PAR(trim(mpp_file(unit)%name), mode, comm, info, mpp_file(unit)%ncid)
               call netcdf_err( error, mpp_file(unit) )
               action_flag = MPP_WRONLY !after setting clobber, there is no further distinction btwn MPP_WRONLY and MPP_OVERWR
@@ -584,7 +599,7 @@
               if (.NOT.exists) call mpp_error(FATAL,'MPP_OPEN:'&
                    &//trim(mpp_file(unit)%name)//' does not exist.')
               !error=NF__OPEN(trim(mpp_file(unit)%name),NF_WRITE,fsize,mpp_file(unit)%ncid);call netcdf_err(error,mpp_file(unit))
-              mode = IOR(IOR(NF_WRITE, NF_PNETCDF), NF_NETCDF4)
+              mode = IOR(IOR(NF_WRITE, NF_MPIIO), NF_NETCDF4)
               error = NF_OPEN_PAR(trim(mpp_file(unit)%name), mode, comm, info, mpp_file(unit)%ncid)
 !get the current time level of the file: writes to this file will be at next time level
               error = NF_INQ_UNLIMDIM( mpp_file(unit)%ncid, unlim%did )
@@ -603,7 +618,7 @@
               if (.NOT.exists) call mpp_error(FATAL,'MPP_OPEN:'&
                    &//trim(mpp_file(unit)%name)//' does not exist.')
               !error=NF__OPEN(trim(mpp_file(unit)%name),NF_NOWRITE,fsize,mpp_file(unit)%ncid);call netcdf_err(error,mpp_file(unit))
-              mode = IOR(IOR(NF_NOWRITE, NF_PNETCDF), NF_NETCDF4)
+              mode = IOR(IOR(NF_NOWRITE, NF_MPIIO), NF_NETCDF4)
               error = NF_OPEN_PAR(trim(mpp_file(unit)%name), mode, comm, info, mpp_file(unit)%ncid)
               if( verbose )print '(a,i6,i16,i4)', 'MPP_OPEN: opening existing netCDF file: pe, ncid, time_axis_id=',&
                    pe, mpp_file(unit)%ncid, mpp_file(unit)%id
