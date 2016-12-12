@@ -394,22 +394,22 @@ type :: atttype
 
   type :: axistype
      private
-     character(len=128) :: name
-     character(len=128) :: name_bounds
-     character(len=128) :: units
-     character(len=256) :: longname
-     character(len=8)   :: cartesian
-     character(len=256) :: compressed
-     character(len=24)  :: calendar
-     integer            :: sense, len          !+/-1, depth or height?
-     type(domain1D)     :: domain              !if pointer is associated, it is a distributed data axis
-     real, pointer      :: data(:) =>NULL()    !axis values (not used if time axis)
-     real, pointer      :: data_bounds(:) =>NULL()    !axis bounds values
-     integer, pointer   :: idata(:) =>NULL()   !compressed axis valuesi
-     integer            :: id, did, type, natt !id is the "variable ID", did is the "dimension ID": 
-                                               !netCDF requires 2 IDs for axes
-     integer            :: shift               !normally is 0. when domain is symmetry, its value maybe 1.
-     type(atttype), pointer :: Att(:) =>NULL()
+     character(len=128)      :: name
+     character(len=128)      :: name_bounds
+     character(len=128)      :: units
+     character(len=256)      :: longname
+     character(len=8)        :: cartesian
+     character(len=256)      :: compressed
+     character(len=24)       :: calendar
+     integer                 :: sense, len          !+/-1, depth or height?
+     type(domain1D), pointer :: domain => NULL()    !if pointer is associated, it is a distributed data axis
+     real, pointer           :: data(:) =>NULL()    !axis values (not used if time axis)
+     real, pointer           :: data_bounds(:) =>NULL()    !axis bounds values
+     integer, pointer        :: idata(:) =>NULL()   !compressed axis valuesi
+     integer                 :: id, did, type, natt !id is the "variable ID", did is the "dimension ID": 
+                                                    !netCDF requires 2 IDs for axes
+     integer                 :: shift               !normally is 0. when domain is symmetry, its value maybe 1.
+     type(atttype), pointer  :: Att(:) =>NULL()
   end type axistype
 
   type :: validtype

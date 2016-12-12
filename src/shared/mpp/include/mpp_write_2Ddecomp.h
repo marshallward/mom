@@ -100,6 +100,7 @@
                  call write_record( unit, field, size(data(:,:,:)), data, tstamp)
               endif
           else
+              ! TODO: Move to the non-parallel conditional block?
               io_domain=>mpp_get_io_domain(mpp_file(unit)%domain) 
               call mpp_get_global_domain ( io_domain, isg, ieg, jsg, jeg, tile_count=tile_count, position=position )
               if(mpp_file(unit)%write_on_this_pe .OR. .NOT. global_field_on_root_pe) then
@@ -109,24 +110,33 @@
               endif
 
               if (parallel_netcdf) then
-                 ! TODO: Temporary code; replace with per-domain write
-                 call mpp_global_field(domain, data, gdata, position=position, &
-                                        flags=XUPDATE+YUPDATE, &
-                                        default_data=default_data)
-              else if(global_field_on_root_pe) then
-                 call mpp_global_field( io_domain, data, gdata, position = position, &
-                                        flags=XUPDATE+YUPDATE+GLOBAL_ROOT_ONLY,      &
-                                        default_data=default_data)
-              else
-                 call mpp_global_field( io_domain, data, gdata, position = position, &
-                                        default_data=default_data)
-              endif
+                 allocate( cdata(is:ie,js:je,size(data,3)) )
+                 if (data_has_halos) then
+                    cdata(:,:,:) = data(is-isd+1:ie-isd+1,js-jsd+1:je-jsd+1,:)
+                 else
+                    cdata(:,:,:) = data(:,:,:)
+                 end if
 
-              ! Domain check
-              io_domain => NULL()
-              if(mpp_file(unit)%write_on_this_pe ) then
-                 call write_record( unit, field, size(gdata(:,:,:)), gdata, tstamp)
-              endif
+                 io_domain => NULL()    ! TODO: move outside conditional?
+                 call write_record(unit, field, size(cdata(:,:,:)), cdata, &
+                                   tstamp, domain)
+                 deallocate(cdata)
+              else
+                 if(global_field_on_root_pe) then
+                    call mpp_global_field( io_domain, data, gdata, position = position, &
+                                           flags=XUPDATE+YUPDATE+GLOBAL_ROOT_ONLY,      &
+                                           default_data=default_data)
+                 else
+                    call mpp_global_field( io_domain, data, gdata, position = position, &
+                                           default_data=default_data)
+                 endif
+
+                 ! Domain check
+                 io_domain => NULL()    ! TODO: move outside conditional?
+                 if(mpp_file(unit)%write_on_this_pe ) then
+                    call write_record( unit, field, size(gdata(:,:,:)), gdata, tstamp)
+                 endif
+              end if
               deallocate( gdata )
           endif
       else if( data_has_halos )then

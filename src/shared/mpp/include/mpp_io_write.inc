@@ -340,15 +340,15 @@
 !write metadata attributes for axis
 !it is declared intent(inout) so you can nullify pointers in the incoming object if needed
 !the f90 standard doesn't guarantee that intent(out) on a type guarantees that its pointer components will be unassociated
-      integer,          intent(in)           :: unit
-      type(axistype),   intent(inout)        :: axis
-      character(len=*), intent(in)           :: name, units, longname
-      character(len=*), intent(in), optional :: cartesian
-      integer,          intent(in), optional :: sense
-      type(domain1D),   intent(in), optional :: domain
-      real,             intent(in), optional :: data(:)
-      real,             intent(in), optional :: min
-      character(len=*), intent(in), optional :: calendar
+      integer,          intent(in)                   :: unit
+      type(axistype),   intent(inout)                :: axis
+      character(len=*), intent(in)                   :: name, units, longname
+      character(len=*), intent(in), optional         :: cartesian
+      integer,          intent(in), optional         :: sense
+      type(domain1D),   intent(in), optional, target :: domain
+      real,             intent(in), optional         :: data(:)
+      real,             intent(in), optional         :: min
+      character(len=*), intent(in), optional         :: calendar
 
       integer :: is, ie, isg, ieg
       integer :: istat      
@@ -365,6 +365,7 @@
 
      if( PRESENT(domain) ) then
          domain_exist = .true.
+         axis%domain => domain
          call mpp_get_global_domain( domain, isg, ieg )
          if(mpp_file(unit)%io_domain_exist) then
             io_domain => mpp_get_io_domain(mpp_file(unit)%domain)
@@ -652,6 +653,8 @@
       real :: a, b
       integer :: i, istat, ishift, jshift
       character(len=64) :: checksum_char
+      integer, allocatable :: chunksize(:)
+      integer :: ie, is
 
 !      call mpp_clock_begin(mpp_write_clock)
 
@@ -772,6 +775,26 @@
              error = NF_VAR_PAR_ACCESS(mpp_file(unit)%ncid, field%id, &
                                        NF_COLLECTIVE)
              call netcdf_err(error, mpp_file(unit), field=field)
+
+             ! Let us first try a dummy global chunking
+             ! (BTW this is not working on Time axis...)
+             allocate(chunksize(size(axes(:))))
+             do i = 1, size(axes(:))
+                if (associated(axes(i)%domain)) then
+                    call mpp_get_compute_domain(axes(i)%domain, is, ie)
+                    chunksize(i) = ie - is + 1
+                else if (associated(axes(i)%data)) then
+                   chunksize(i) = size(axes(i)%data)
+                else ! Unlimited
+                   chunksize(i) = 1
+                end if
+             end do
+
+             error = NF_DEF_VAR_CHUNKING(mpp_file(unit)%ncid, field%id, &
+                                         NF_CHUNKED, chunksize)
+             call netcdf_err(error, mpp_file(unit), field=field)
+
+             deallocate(chunksize)
           end if
 
 #endif
@@ -1286,20 +1309,18 @@
              start(i) = max(start(i),1)
           end do
 
-          !! Testing: Domain override
-          !! TODO: Determine X and Y axis indices
-          !if( PRESENT(domain) )then
-          !   call mpp_get_compute_domain(domain, is, ie, js, je)
-          !   ! X axis (?)
-          !   start(1) = is
-          !   axsiz(1) = ie - is + 1
+          ! Testing: Domain override
+          ! TODO: Determine X and Y axis indices
+          if( PRESENT(domain) )then
+             call mpp_get_compute_domain(domain, is, ie, js, je)
+             ! X axis (?)
+             start(1) = is
+             axsiz(1) = ie - is + 1
 
-          !   ! Y axis (?)
-          !   start(2) = js
-          !   axsiz(2) = je - js + 1
-
-          !   print *, "rank", mpp_pe(), "start", start, "axsiz", axsiz
-          !end if
+             ! Y axis (?)
+             start(2) = js
+             axsiz(2) = je - js + 1
+          end if
 
           if( debug )print '(a,2i6,12i6)', 'WRITE_RECORD: PE, unit, start, axsiz=', pe, unit, start, axsiz
 #ifdef use_netCDF
