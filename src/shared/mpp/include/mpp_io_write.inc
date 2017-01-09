@@ -434,6 +434,9 @@
                  error = NF_DEF_VAR( mpp_file(unit)%ncid, axis%name, NF_FLOAT, 1, axis%did, axis%id )
               endif
               call netcdf_err( error, mpp_file(unit), axis )
+              error = NF_VAR_PAR_ACCESS(mpp_file(unit)%ncid, axis%id, &
+                                        NF_COLLECTIVE)
+              call netcdf_err(error, mpp_file(unit), axis)
           else                            !time axis
               if( mpp_file(unit)%id.NE.-1 ) &
                    call mpp_error( FATAL, 'MPP_WRITE_META_AXIS: There is already a time axis for this file.' )
@@ -447,6 +450,9 @@
               call netcdf_err( error, mpp_file(unit), axis )
               mpp_file(unit)%id = axis%id !file ID is the same as time axis varID
           end if
+          error = NF_VAR_PAR_ACCESS(mpp_file(unit)%ncid, axis%id, &
+                                    NF_COLLECTIVE)
+          call netcdf_err(error, mpp_file(unit), axis)
 #endif        
       else
           varnum = varnum + 1
@@ -552,6 +558,9 @@
           call netcdf_err( error, mpp_file(unit), axis )
           error = NF_DEF_VAR( mpp_file(unit)%ncid, axis%name, NF_INT, 1, axis%did, axis%id )
           call netcdf_err( error, mpp_file(unit), axis )
+          error = NF_VAR_PAR_ACCESS(mpp_file(unit)%ncid, axis%id, &
+                                    NF_COLLECTIVE)
+          call netcdf_err(error, mpp_file(unit), axis)
       else
           call mpp_error( FATAL, 'MPP_WRITE_META_AXIS_I1D: Only netCDF format is currently supported.' )
       end if  
@@ -615,6 +624,9 @@
           call netcdf_err( error, mpp_file(unit), axis )
           error = NF_DEF_VAR( mpp_file(unit)%ncid, axis%name, NF_INT, 0, axis%did, axis%id )
           call netcdf_err( error, mpp_file(unit), axis )
+          error = NF_VAR_PAR_ACCESS(mpp_file(unit)%ncid, axis%id, &
+                                    NF_COLLECTIVE)
+          call netcdf_err(error, mpp_file(unit), axis)
       else
           call mpp_error( FATAL, 'MPP_WRITE_META_AXIS_UNLIMITED: Only netCDF format is currently supported.' )
       end if  
