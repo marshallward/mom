@@ -790,23 +790,26 @@
 
              ! Let us first try a dummy global chunking
              ! (BTW this is not working on Time axis...)
-             allocate(chunksize(size(axes(:))))
-             do i = 1, size(axes(:))
-                if (associated(axes(i)%domain)) then
-                    call mpp_get_compute_domain(axes(i)%domain, is, ie)
-                    chunksize(i) = ie - is + 1
-                else if (associated(axes(i)%data)) then
-                   chunksize(i) = size(axes(i)%data)
-                else ! Unlimited
-                   chunksize(i) = 1
-                end if
-             end do
+             
+             if ( parallel_chunk ) then
+                 allocate(chunksize(size(axes(:))))
+                 do i = 1, size(axes(:))
+                    if (associated(axes(i)%domain)) then
+                        call mpp_get_compute_domain(axes(i)%domain, is, ie)
+                        chunksize(i) = ie - is + 1
+                    else if (associated(axes(i)%data)) then
+                       chunksize(i) = size(axes(i)%data)
+                    else ! Unlimited
+                       chunksize(i) = 1
+                    end if
+                 end do
 
-             error = NF_DEF_VAR_CHUNKING(mpp_file(unit)%ncid, field%id, &
-                                         NF_CHUNKED, chunksize)
-             call netcdf_err(error, mpp_file(unit), field=field)
+                 error = NF_DEF_VAR_CHUNKING(mpp_file(unit)%ncid, field%id, &
+                                             NF_CHUNKED, chunksize)
+                 call netcdf_err(error, mpp_file(unit), field=field)
 
-             deallocate(chunksize)
+                 deallocate(chunksize)
+             end if
           end if
 
 #endif
