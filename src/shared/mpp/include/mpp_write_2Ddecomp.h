@@ -212,7 +212,13 @@
               else
                   allocate( gdata(1,1,1,1))
               endif
-              if(global_field_on_root_pe) then
+
+              if (parallel_netcdf) then
+                  ! TODO: This is a temporary fix, replace with per-domain writes
+                  call mpp_global_field(domain, data, gdata, position=position, &
+                                        flags=XUPDATE+YUPDATE, &
+                                        default_data=default_data)
+              else if(global_field_on_root_pe) then
                  call mpp_global_field( domain, data, gdata, position = position, &
                                         flags=XUPDATE+YUPDATE+GLOBAL_ROOT_ONLY, &
                                         default_data=default_data)
@@ -240,17 +246,31 @@
               else
                  allocate( gdata(1,1,1,1))
               endif
-              if(global_field_on_root_pe) then
-                 call mpp_global_field( io_domain, data, gdata, position = position, &
-                                        flags=XUPDATE+YUPDATE+GLOBAL_ROOT_ONLY,      &
-                                        default_data=default_data)
+              if (parallel_netcdf) then
+                 allocate( cdata(is:ie,js:je,size(data,3), size(data,4)) )
+                 if (data_has_halos) then
+                    cdata(:,:,:,:) = data(is-isd+1:ie-isd+1,js-jsd+1:je-jsd+1,:,:)
+                 else
+                    cdata(:,:,:,:) = data(:,:,:,:)
+                 end if
+
+                 io_domain => NULL()    ! TODO: move outside conditional?
+                 call write_record(unit, field, size(cdata(:,:,:,:)), cdata, &
+                                   tstamp, domain)
+                 deallocate(cdata)
               else
-                 call mpp_global_field( io_domain, data, gdata, position = position, &
-                                        default_data=default_data)
-              endif
-              io_domain => NULL()
-              if(mpp_file(unit)%write_on_this_pe ) then
-                 call write_record( unit, field, size(gdata(:,:,:,:)), gdata, tstamp)
+                 if(global_field_on_root_pe) then
+                    call mpp_global_field( io_domain, data, gdata, position = position, &
+                                           flags=XUPDATE+YUPDATE+GLOBAL_ROOT_ONLY,      &
+                                           default_data=default_data)
+                 else
+                    call mpp_global_field( io_domain, data, gdata, position = position, &
+                                           default_data=default_data)
+                 endif
+                 io_domain => NULL()
+                 if(mpp_file(unit)%write_on_this_pe ) then
+                    call write_record( unit, field, size(gdata(:,:,:,:)), gdata, tstamp)
+                 endif
               endif
               deallocate( gdata )
           endif
